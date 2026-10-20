@@ -1,0 +1,117 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>lynx — open-source pan/tilt camera</title>
+  <meta name="description" content="lynx: an open-source pan/tilt camera built around the Seeed XIAO ESP32-S3 Sense. 3D-printable, two servos, one USB-C cable." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%237fd6a4' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%237fd6a4'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <canvas id="scene" aria-label="Interactive 3D model of the lynx camera"></canvas>
+
+  <div id="loader" role="status">
+    <div class="aperture" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="mark">lynx</div>
+    <div class="bar"><span></span></div>
+    <p class="mono">focusing…</p>
+  </div>
+
+  <!-- viewfinder chrome: corners, live servo readout, record dot, chapter rail -->
+  <div id="vf" aria-hidden="true">
+    <span class="c tl"></span><span class="c tr"></span><span class="c bl"></span><span class="c br"></span>
+    <div class="readout mono">
+      <span class="rec"></span><span>REC</span>
+      <span class="sep"></span><span>PAN <b id="ro-pan">+00.0°</b></span>
+      <span class="sep"></span><span>TILT <b id="ro-tilt">+00.0°</b></span>
+    </div>
+    <div class="spec mono">XIAO ESP32-S3 · 2× MG90S · f/2.0</div>
+  </div>
+  <svg id="callout" aria-hidden="true"><path id="leader" /><circle id="target" r="9" /><circle id="target-dot" r="2.4" /></svg>
+
+  <header class="hud">
+    <a class="brand" href="#top" aria-label="lynx home"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" /><circle class="pupil" cx="16" cy="16" r="4" /></svg>lynx</a>
+    <nav>
+      <a href="#motion">Motion</a><a href="#build">Build</a>
+      <a class="key small" href="https://github.com/alexnodeland/lynx" target="_blank" rel="noopener"><span class="cap">GitHub</span></a>
+    </nav>
+  </header>
+
+  <nav id="rail" aria-label="Chapters">
+    <div class="track"><span class="fill"></span></div>
+    <a data-to="1"><i>01</i>power</a><a data-to="2"><i>02</i>storage</a><a data-to="3"><i>03</i>motion</a><a data-to="4"><i>04</i>build</a>
+  </nav>
+
+  <main id="track">
+    <section class="beat" id="top" data-beat="hero">
+      <article class="slab left hero">
+        <div class="face">
+          <p class="eyebrow mono">open-source hardware</p>
+          <h1>A camera that<br />looks around.</h1>
+          <p>lynx turns the XIAO ESP32-S3 Sense into a pan/tilt camera you can print and build in an afternoon.</p>
+          <p class="hint mono">scroll ↓</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="beat" data-beat="usb" data-anchor="pod">
+      <article class="slab right">
+        <div class="face">
+          <p class="eyebrow mono">01 · power</p>
+          <h2>One USB-C cable.</h2>
+          <p>Power and data go in through the base. Inside, a braided lead rides three clips and a spring relief, so nothing tugs on the board when it moves.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="beat" data-beat="sd" data-anchor="sd">
+      <article class="slab left">
+        <div class="face">
+          <p class="eyebrow mono">02 · storage</p>
+          <h2>microSD, right where it should be.</h2>
+          <p>The slot sits above the USB-C port with a clear path in — checked in CAD, not hoped for.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="beat" id="motion" data-beat="motion" data-anchor="pivot">
+      <article class="slab right">
+        <div class="face">
+          <p class="eyebrow mono">03 · motion</p>
+          <h2>±90° pan. ±60° tilt.</h2>
+          <p>Two MG90S servos on D0 and D1. Moves ease and settle like a head turn, then the PWM switches off so it doesn't hum.</p>
+          <div class="stats"><div><b>180°</b><span>pan</span></div><div><b>120°</b><span>tilt</span></div><div><b>0</b><span>collisions</span></div></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="beat" id="build" data-beat="assembly">
+      <article class="slab left">
+        <div class="face">
+          <p class="eyebrow mono">04 · build</p>
+          <h2>Eight printed parts. One screw.</h2>
+          <p>Nine M2 × 8 thread-forming screws hold it all together.</p>
+          <ol class="steps" id="steps"></ol>
+        </div>
+      </article>
+    </section>
+
+    <section class="beat" data-beat="cta">
+      <div class="cta-wrap">
+        <p class="cta-title">Build your own <em>lynx</em>.</p>
+        <div class="keys">
+          <a class="key" href="https://github.com/alexnodeland/lynx" target="_blank" rel="noopener"><span class="cap"><b>View on GitHub</b><small class="mono">CERN-OHL-S · MIT · CC BY-SA</small></span></a>
+          <a class="key accent" href="https://github.com/alexnodeland/lynx/tree/main/hardware/production"><span class="cap"><b>Download the STLs</b><small class="mono">8 parts · print-ready</small></span></a>
+          <a class="key" href="https://github.com/alexnodeland/lynx/tree/main/docs/manual"><span class="cap"><b>Read the manual</b><small class="mono">step-by-step</small></span></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
