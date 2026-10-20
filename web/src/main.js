@@ -30,7 +30,7 @@ const b2l = (x, y, z) => new THREE.Vector3(x, z, -y);                       // u
 // ------------------------------------------------------------------ renderer + scene
 const canvas = document.getElementById("scene");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.AgXToneMapping;
 renderer.toneMappingExposure = 0.82;
@@ -151,11 +151,46 @@ function cableMesh(anchors, radius, material) {
 }
 const cables = [cableMesh(internalAnchors, 0.002, cableMaterial()), cableMesh(extAnchors, 0.0019, powerCableMaterial())];
 const tmp = new THREE.Vector3();
+// cables: one TubeGeometry per cable, rewritten in place (no per-frame allocation or GPU re-create),
+// and only when an anchor actually moved
+const TUBE_SEG = 160, TUBE_RAD = 12;
+const _n = new THREE.Vector3(), _v = new THREE.Vector3();
 function updateCables() {
   for (const c of cables) {
-    const pts = c.userData.anchors.map((a) => a.n.localToWorld(tmp.copy(a.local)).clone());
-    c.geometry.dispose();
-    c.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, "centripetal"), 160, c.userData.radius, 12);
+    const u = c.userData;
+    u.pts ??= u.anchors.map(() => new THREE.Vector3());
+    let moved = !u.built;
+    u.anchors.forEach((a, i) => {
+      a.n.localToWorld(_v.copy(a.local));
+      if (_v.distanceToSquared(u.pts[i]) > 1e-12) { u.pts[i].copy(_v); moved = true; }
+    });
+    if (!moved) continue;
+    u.curve ??= new THREE.CatmullRomCurve3(u.pts, false, "centripetal");
+    if (!u.built) {
+      c.geometry.dispose();
+      c.geometry = new THREE.TubeGeometry(u.curve, TUBE_SEG, u.radius, TUBE_RAD);
+      c.geometry.attributes.position.setUsage(THREE.DynamicDrawUsage);
+      c.geometry.attributes.normal.setUsage(THREE.DynamicDrawUsage);
+      u.built = true;
+      continue;
+    }
+    const fr = u.curve.computeFrenetFrames(TUBE_SEG, false);
+    const pos = c.geometry.attributes.position.array, nor = c.geometry.attributes.normal.array;
+    let k = 0;
+    for (let i = 0; i <= TUBE_SEG; i++) {
+      u.curve.getPointAt(i / TUBE_SEG, _v);
+      const N = fr.normals[i], B = fr.binormals[i];
+      for (let j = 0; j <= TUBE_RAD; j++) {
+        const a = (j / TUBE_RAD) * Math.PI * 2, sn = Math.sin(a), cs = -Math.cos(a);
+        _n.set(cs * N.x + sn * B.x, cs * N.y + sn * B.y, cs * N.z + sn * B.z).normalize();
+        nor[k] = _n.x; nor[k + 1] = _n.y; nor[k + 2] = _n.z;
+        pos[k] = _v.x + u.radius * _n.x; pos[k + 1] = _v.y + u.radius * _n.y; pos[k + 2] = _v.z + u.radius * _n.z;
+        k += 3;
+      }
+    }
+    c.geometry.attributes.position.needsUpdate = true;
+    c.geometry.attributes.normal.needsUpdate = true;
+    c.geometry.computeBoundingSphere();
   }
 }
 
@@ -180,6 +215,7 @@ const ao = new N8AOPass(scene, camera, innerWidth, innerHeight);
 ao.configuration.aoRadius = 0.02;
 ao.configuration.distanceFalloff = 0.01;
 ao.configuration.intensity = 2.2;
+ao.configuration.halfRes = true;
 ao.configuration.gammaCorrection = false;        // OutputPass does the colour conversion once, at the end
 composer.addPass(ao);
 composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.25, 0.4, 0.92));
@@ -216,7 +252,10 @@ function toShot(tl, name, at, dur = 1) {
   tl.to(cam, { fov: s.fov, duration: dur, ease: "power2.inOut" }, at);
 }
 const beats = [...document.querySelectorAll(".beat")];
-const at = (i) => beats[i].offsetTop / (document.documentElement.scrollHeight - innerHeight);
+let beatAt = [];
+const measureBeats = () => { const H = document.documentElement.scrollHeight - innerHeight; beatAt = beats.map((b) => b.offsetTop / H); };
+measureBeats();
+const at = (i) => beatAt[i];   // cached: no layout reads inside the frame loop
 
 function buildTimeline() {
   const tl = gsap.timeline({ paused: true, defaults: { ease: "power2.inOut" } });
@@ -309,12 +348,16 @@ const callout = document.getElementById("callout"), leader = document.getElement
 const target = document.getElementById("target"), targetDot = document.getElementById("target-dot");
 const roPan = document.getElementById("ro-pan"), roTilt = document.getElementById("ro-tilt");
 const fmt = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1).padStart(4, "0")}°`;
-function updateChrome(livePan, liveTilt) {
-  roPan.textContent = fmt(livePan);
-  roTilt.textContent = fmt(liveTilt);
-  railFill.style.width = `${progress * 100}%`;
+function updateReadout(livePan, liveTilt) {   // text writes run after the layout read in updateChrome
+  const p = fmt(livePan), t = fmt(liveTilt);
+  if (roPan.textContent !== p) roPan.textContent = p;
+  if (roTilt.textContent !== t) roTilt.textContent = t;
+}
+function updateChrome() {
+  railFill.style.transform = `scaleX(${progress})`;
   let cur = 0;
-  beats.forEach((b, i) => { const r = b.getBoundingClientRect(); if (r.top < innerHeight * 0.55) cur = i; });
+  const y = (goal * (document.documentElement.scrollHeight - innerHeight) + innerHeight * 0.45) / (document.documentElement.scrollHeight - innerHeight);
+  beatAt.forEach((t, i) => { if (t <= y) cur = i; });
   railLinks.forEach((a) => a.classList.toggle("on", +a.dataset.to === cur || (cur === 5 && +a.dataset.to === 4)));
   // leader line from the visible slab to its anchor
   const beat = beats[cur], key = beat.dataset.anchor, slab = beat.querySelector(".slab");
@@ -332,24 +375,32 @@ function updateChrome(livePan, liveTilt) {
 
 // ------------------------------------------------------------------ run
 let tl = buildTimeline();
-let progress = 0;
-ScrollTrigger.create({ start: 0, end: "max", onUpdate: (st) => (progress = st.progress) });
+// scroll sets a goal; the scene eases toward it every frame, so wheel steps glide instead of jump
+let goal = 0, progress = 0, vel = 0;
+ScrollTrigger.create({ start: 0, end: "max", onUpdate: (st) => (goal = st.progress) });
 addEventListener("resize", () => {
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
-  tl.kill(); tl = buildTimeline();
+  measureBeats(); tl.kill(); tl = buildTimeline();
 });
 applyParts();
 updateCables();
+// compile every material up front: parts that first enter the frame mid-scroll would otherwise stall it
+await renderer.compileAsync(scene, camera);
+composer.render();
 document.getElementById("loader").classList.add("done");
 const introTl = REDUCED ? null : intro();
 const clock = new THREE.Clock();
 let lookPan = 0, lookTilt = 0;
 
 renderer.setAnimationLoop(() => {
-  const dt = Math.min(clock.getDelta(), 0.05);
+  const dt = Math.min(clock.getDelta(), 1 / 30);
+  // critically damped spring toward the scroll goal (no overshoot, frame-rate independent)
+  const w = 9, x = progress - goal, e = Math.exp(-w * dt), t0 = (vel + w * x) * dt;
+  progress = goal + (x + t0) * e; vel = (vel - w * t0) * e;
+  if (Math.abs(progress - goal) < 1e-5 && Math.abs(vel) < 1e-5) { progress = goal; vel = 0; }
   if (!introTl || !introTl.isActive()) tl.progress(progress);
   // in the hero and CTA beats the head follows the cursor, gently
   const idle = progress < at(1) - 0.07 || progress > at(5) - 0.02;
@@ -362,7 +413,7 @@ renderer.setAnimationLoop(() => {
   updateCables();
   panArc.material.opacity = tiltArc.material.opacity = state.arcs * 0.8;
   // camera with inertia + a touch of parallax: feels hand-held, like a game camera
-  const k = 1 - Math.exp(-dt * 4);
+  const k = 1 - Math.exp(-dt * 12);
   smooth.pos.lerp(tmp.copy(cam.pos).add(new THREE.Vector3(mouse.x * 0.006, -mouse.y * 0.004, 0)), k);
   smooth.target.lerp(cam.target, k);
   smooth.fov += (cam.fov - smooth.fov) * k;
@@ -372,6 +423,7 @@ renderer.setAnimationLoop(() => {
   camera.lookAt(smooth.target);
   bokeh.uniforms.focus.value = camera.position.distanceTo(smooth.target);
   ledLight.position.copy(b2t(...rig.led));
-  updateChrome(pan.rotation.y * THREE.MathUtils.RAD2DEG, tilt.rotation.x * THREE.MathUtils.RAD2DEG);
+  updateChrome();
+  updateReadout(pan.rotation.y * THREE.MathUtils.RAD2DEG, tilt.rotation.x * THREE.MathUtils.RAD2DEG);
   composer.render();
 });

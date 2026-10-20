@@ -77,7 +77,7 @@ body { overflow-x: hidden; -webkit-font-smoothing: antialiased; }
 #rail .track { position: absolute; left: 0; right: 0; top: 0; height: 1px; background: rgba(255,255,255,.14); }
 #rail .track::before { content: ""; position: absolute; inset: -3px 0 auto; height: 7px;
   background: repeating-linear-gradient(90deg, rgba(255,255,255,.18) 0 1px, transparent 1px 12px); }
-#rail .fill { position: absolute; left: 0; top: 0; height: 1px; width: 0; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+#rail .fill { position: absolute; left: 0; top: 0; height: 1px; width: 100%; transform: scaleX(0); transform-origin: 0 50%; will-change: transform; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
 #rail a { cursor: pointer; font: 500 11px/1 "JetBrains Mono", monospace; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
   padding: 6px 2px; text-shadow: 0 1px 8px rgba(0,0,0,.9);
   transition: color .3s; white-space: nowrap; }
