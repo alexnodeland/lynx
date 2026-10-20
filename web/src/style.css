@@ -171,3 +171,9 @@ body { overflow-x: hidden; -webkit-font-smoothing: antialiased; }
   .slab { transition: none; opacity: 1; transform: none; }
   .aperture, #target, #vf .rec { animation: none; }
 }
+
+/* touch: a flick advances one chapter instead of flinging past several */
+@media (pointer: coarse) {
+  html { scroll-snap-type: y proximity; }
+  .beat { scroll-snap-align: start; scroll-snap-stop: always; }
+}

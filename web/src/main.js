@@ -377,6 +377,8 @@ function updateChrome() {
 let tl = buildTimeline();
 // scroll sets a goal; the scene eases toward it every frame, so wheel steps glide instead of jump
 let goal = 0, progress = 0, vel = 0;
+const TOUCH = matchMedia("(pointer: coarse)").matches;
+const MAX_RATE = TOUCH ? 0.16 : 0.3;   // timeline progress per second: caps how fast a fling can drive the scene
 ScrollTrigger.create({ start: 0, end: "max", onUpdate: (st) => (goal = st.progress) });
 // The timeline records each tween's start values when it is built, so it must be rebuilt from the
 // rest pose: rewind to 0 first, or the pose at that moment (half exploded, mid-pan) becomes the
@@ -412,7 +414,10 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 1 / 30);
   // critically damped spring toward the scroll goal (no overshoot, frame-rate independent)
   const w = 9, x = progress - goal, e = Math.exp(-w * dt), t0 = (vel + w * x) * dt;
-  progress = goal + (x + t0) * e; vel = (vel - w * t0) * e;
+  const next = goal + (x + t0) * e, cap = MAX_RATE * dt;
+  vel = (vel - w * t0) * e;
+  if (Math.abs(next - progress) > cap) { progress += Math.sign(next - progress) * cap; vel = Math.sign(vel) * Math.min(Math.abs(vel), MAX_RATE); }
+  else progress = next;
   if (Math.abs(progress - goal) < 1e-5 && Math.abs(vel) < 1e-5) { progress = goal; vel = 0; }
   if (!introTl || !introTl.isActive()) tl.progress(progress);
   // in the hero and CTA beats the head follows the cursor, gently
