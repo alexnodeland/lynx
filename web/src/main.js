@@ -378,12 +378,25 @@ let tl = buildTimeline();
 // scroll sets a goal; the scene eases toward it every frame, so wheel steps glide instead of jump
 let goal = 0, progress = 0, vel = 0;
 ScrollTrigger.create({ start: 0, end: "max", onUpdate: (st) => (goal = st.progress) });
+// The timeline records each tween's start values when it is built, so it must be rebuilt from the
+// rest pose: rewind to 0 first, or the pose at that moment (half exploded, mid-pan) becomes the
+// new "assembled" state. Phones fire resize on returning to the tab (address bar), so debounce.
+let rebuildTimer = 0;
+function scheduleRebuild() {
+  clearTimeout(rebuildTimer);
+  rebuildTimer = setTimeout(() => {
+    tl.progress(0); tl.kill();
+    measureBeats();
+    tl = buildTimeline();
+    tl.progress(progress);
+  }, 150);
+}
 addEventListener("resize", () => {
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
-  measureBeats(); tl.kill(); tl = buildTimeline();
+  scheduleRebuild();
 });
 applyParts();
 updateCables();
