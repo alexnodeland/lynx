@@ -1,9 +1,22 @@
 # lynx-motion
 
+[![PlatformIO](https://img.shields.io/badge/PlatformIO-espressif32%406.9.0-f5822a?logo=platformio&logoColor=white)](platformio.ini)
+[![Board](https://img.shields.io/badge/board-seeed__xiao__esp32s3-555)](platformio.ini)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](../../LICENSES/MIT.txt)
+
 Motor-control firmware for **lynx**, the open-source pan/tilt camera on a
 Seeed Studio XIAO ESP32-S3 Sense. Motion only — no camera streaming yet.
 
 ## Wiring
+
+```mermaid
+flowchart LR
+  XIAO["XIAO ESP32-S3 Sense"] -- "D0 / GPIO1" --> PAN["Pan servo"]
+  XIAO -- "D1 / GPIO2" --> TILT["Tilt servo"]
+  XIAO -- "5V (USB VBUS)" --> RAIL["5V rail + 470 µF"]
+  RAIL --> PAN
+  RAIL --> TILT
+```
 
 | From | To |
 |------|----|
@@ -56,6 +69,18 @@ only produces a pulse width, so swapping to raw LEDC later touches only
 `driveServos()`.
 
 ## Motion
+
+```mermaid
+stateDiagram-v2
+  [*] --> Detached
+  Detached --> Moving: command (pan / tilt / look / center / sweep)
+  Moving: Moving — eased toward overshoot (75 % of duration)
+  Moving --> Settling
+  Settling: Settling — eased back onto target
+  Settling --> AtRest
+  AtRest --> Moving: new command
+  AtRest --> Detached: idle ms elapsed (default 1500)
+```
 
 Every move uses a "glance" profile: ease-in-out up to a small overshoot
 (6 % of the distance, capped at 4°) at 75 % of the duration, then an eased
