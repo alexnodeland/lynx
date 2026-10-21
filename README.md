@@ -19,17 +19,76 @@
 
 # lynx
 
-An open-source pan/tilt camera built around the Seeed XIAO ESP32-S3 Sense. It has eight 3D-printed parts and two MG90S servos, runs on one USB-C cable, and is held together by one screw type (M2 × 8 thread-forming).
+**An open-source pan/tilt camera you can tell where to look.** AI agents drive it over MCP, Home Assistant finds it on its own, and it tracks faces and learns your own objects without sending a frame off the device.
 
-**Site:** https://alexnodeland.github.io/lynx/ · **[Build guide (3D)](https://alexnodeland.github.io/lynx/build.html)** · **[Web flasher](https://alexnodeland.github.io/lynx/flash.html)** · **[Docs](docs/README.md)**
+It runs on a Seeed XIAO ESP32-S3 Sense with two MG90S servos and eight 3D-printed parts. One USB-C cable powers it, and one screw type holds it together.
+
+**Site:** https://alexnodeland.github.io/lynx/ · **[Web flasher](https://alexnodeland.github.io/lynx/flash.html)** · **[Build guide (3D)](https://alexnodeland.github.io/lynx/build.html)** · **[Docs](docs/README.md)**
+
+## What it does
+
+### Agents: an MCP server on the camera
+
+The firmware is an MCP server (Streamable HTTP) and a REST API. Give an agent the URL and the device token, and it can aim the head, take a snapshot with the detections drawn on it, find faces, save presets, run a patrol, and read the microSD recordings.
+
+```sh
+claude mcp add --transport http lynx http://lynx-xxxx.local/mcp --header "Authorization: Bearer <token>"
+```
+
+> **you:** look at the desk and take a picture
+> → `look(pan: -40, tilt: 30)` → `snapshot(annotate: true)`
+> **agent:** A laptop, a mug and a plant. One person, seated on the left.
+
+Tools: `look` · `center` · `sweep` · `snapshot` · `detect` · `follow` · `preset` · `patrol` · `recordings` · `set_camera` · `stream_url` · `status`. Full list and the REST API: [`firmware/lynx`](firmware/lynx#mcp).
+
+### Home Assistant: discovered, not configured
+
+Add this repo to HACS as a custom integration and lynx shows up under *Discovered* (zeroconf). Paste the token and you get the camera with live view, pan and tilt sliders, occupancy and a person count, follow and detection switches, presets and patrol, microSD recording, and a firmware update entity that installs GitHub releases over Wi-Fi.
+
+```yaml
+# look at the front door when it opens
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.front_door
+    to: "on"
+actions:
+  - action: lynx.look
+    target: { entity_id: camera.lynx_42e0 }
+    data: { pan: 60, tilt: 50 }
+```
+
+Entities and more automations: [`custom_components/lynx`](custom_components/lynx).
+
+### Face tracking, on the device
+
+ESP-DL finds human faces or cat faces at about 4 fps on a scaled copy of each frame, so the stream keeps its 20 fps. **Follow mode** keeps the nearest face centred with small no-overshoot moves, holds where it last saw one, then glides back to rest. It's detection, not recognition, and nothing leaves the camera unless you ask for it over the API.
+
+### Your own detector
+
+Anything else (a package, your dog, a whole person) comes from Edge Impulse. lynx collects its own training set by scanning the room, and one command installs the export:
+
+```sh
+just capture mug              # lynx pans the room and saves 30 shots to datasets/mug/
+# label and train in Edge Impulse (FOMO boxes or a classifier), export as an Arduino library
+just model-add export.zip     # now `model: custom` in the API, MCP and Home Assistant
+```
+
+Walkthrough: [docs/custom-models.md](docs/custom-models.md).
+
+### Also
+
+Over-the-air updates that roll themselves back if a new build fails · up to 4 viewers at once and pushed status events · 8 named presets and a patrol tour · snapshots on detection and a timelapse on microSD · a first-boot Wi-Fi hotspot with a setup page · a per-device token.
+
+## Repository
 
 | Path | Contents |
 |------|----------|
+| [`firmware/lynx`](firmware/lynx) | PlatformIO firmware: motion, camera and MJPEG stream, REST API, MCP server, detection and follow, OTA, setup hotspot |
+| [`custom_components/lynx`](custom_components/lynx) | Home Assistant integration (HACS) |
 | [`hardware/production`](hardware/production) | Print-ready STL/STEP, assembly STEP, [BOM](hardware/production/BOM.md) |
-| [`hardware/electronics`](hardware/electronics) | Circuit, nets, parts, wiring harness (servo-carrier PCB in progress) |
-| [`custom_components/lynx`](custom_components/lynx) | Home Assistant integration (HACS): auto-discovered, camera + live view, pan/tilt, `lynx.look` action |
-| [`firmware/lynx`](firmware/lynx) | PlatformIO firmware: eased pan/tilt, camera snapshots + MJPEG stream, REST API, MCP server, setup hotspot, per-device token |
-| [`web`](web) | three.js landing page (Vite + GSAP) |
+| [`hardware/electronics`](hardware/electronics) | Circuit, nets, parts, wiring harness, carrier PCB (KiCad) |
+| [`web`](web) | three.js landing page, build guide and web flasher (Vite + GSAP) |
+| [`tools/ml`](tools/ml) | Training-image capture for custom models |
 | `media` | Renders and screenshots |
 
 ## Specs
@@ -46,7 +105,7 @@ An open-source pan/tilt camera built around the Seeed XIAO ESP32-S3 Sense. It ha
 | Printed parts | 8 (base, lid, battery tray, yoke, pan base, pan cap, servo shroud, light pipe) |
 | Control | on your network: REST API, MCP server for AI agents, MJPEG stream (port 81), dashboard; per-device token; serial console |
 | Setup | first-boot Wi-Fi hotspot `lynx-xxxx` with a captive setup page; `lynx-xxxx.local` via mDNS |
-| Detection | on-device faces or cat faces (ESP-DL), ~4 fps; **follow mode** keeps the nearest face in frame; nothing leaves the device |
+| Detection | on-device faces or cat faces (ESP-DL), ~4 fps; custom Edge Impulse models; follow mode |
 | Rest pose | pan 0°, tilt 45°: the lens leans toward the front (tilt 0° points it straight up) |
 | Battery | optional 150 mAh LiPo keeps the camera up; servos run on USB power only |
 
@@ -62,7 +121,9 @@ flowchart LR
   XIAO -- "D1 → 220 Ω" --> TILT["Tilt servo<br/>MG90S"]
   RAIL --> PAN
   RAIL --> TILT
-  XIAO -. "Wi-Fi: HTTP API" .- CLIENT["Browser / curl"]
+  XIAO -. "Wi-Fi: MCP" .- AGENT["AI agent"]
+  XIAO -. "Wi-Fi: REST + events" .- HA["Home Assistant"]
+  XIAO -. "Wi-Fi: dashboard + MJPEG" .- CLIENT["Browser"]
 ```
 
 ## Gallery

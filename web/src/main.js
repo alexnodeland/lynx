@@ -24,6 +24,9 @@ const ASSEMBLY = [
   ["Jig_LiPo_401723", "Battery"], ["BatteryTray", "Tray clicks in"], ["Jig_XIAO_Sense", "Board onto the tray"],
   ["Lid", "Light pipe, lid, two screws"],
 ];
+// on the landing page lynx is already powered and carded: the chapters are about what it does
+state.plug = 0; state.card = 0; state.led = 0.6;
+const occ = document.getElementById("occ");
 document.getElementById("steps").innerHTML = ASSEMBLY.map(([, t]) => `<li>${t}</li>`).join("");
 
 // ------------------------------------------------------------------ camera shots (Blender convention)
@@ -37,8 +40,9 @@ function shotPose([tx, ty, tz], az, el, dist, fov) {
 }
 const SHOTS = {
   hero: shotPose(HERO, -32, 16, 0.40, 28),
-  usb: shotPose([C.pan_x, rig.pod_face_y - 4, C.floor_z + 16], 150, 20, 0.30, 30),
-  sd: shotPose([rig.usb_axis[0] - 3, rig.usb_axis[1], rig.usb_axis[2] + 4], 38, 34, 0.22, 30),
+  agents: shotPose([C.pan_x, C.cy, -8], 28, 14, 0.36, 30),
+  home: shotPose([C.pan_x, C.cy, -10], -48, 22, 0.42, 30),
+  train: shotPose([C.pan_x, C.cy, -2], 6, 8, 0.28, 30),
   motion: shotPose([C.pan_x, C.cy, -6], 12, 10, 0.30, 30),
   assembly: shotPose([C.pan_x, C.cy, 0], -18, 16, 0.52, 32),
   cta: shotPose([C.pan_x, C.cy, -34], -40, 12, 0.44, 28),        // target low: product sits high, CTAs below
@@ -61,38 +65,60 @@ const at = (i) => beatAt[i];   // cached: no layout reads inside the frame loop
 
 function buildTimeline() {
   const tl = gsap.timeline({ paused: true, defaults: { ease: "power2.inOut" } });
-  // usb
-  toShot(tl, "usb", at(1) - 0.06, 0.08);
-  tl.to(state, { pan: -25, duration: 0.06 }, at(1) - 0.06);
-  tl.to(state, { plug: 0, duration: 0.05 }, at(1) + 0.02);
-  tl.to(state, { led: 1, duration: 0.01 }, at(1) + 0.075);
-  // sd
-  toShot(tl, "sd", at(2) - 0.08, 0.11);                    // slower, gentler move into the close-up
-  tl.to(state, { pan: 0, tilt: REST_TILT, duration: 0.08 }, at(2) - 0.08);
-  tl.to(state, { card: 0, duration: 0.05 }, at(2) + 0.02);
-  // motion: sweep with eased glances
+  // a chapter's list items light up one by one as it plays (chat lines, entities, steps)
+  const mark = (sel, i, t) => tl.call(() => document.querySelectorAll(sel).forEach((li, j) => {
+    li.classList.toggle("on", j <= i); li.classList.toggle("now", j === i);
+  }), null, t);
+  // agents: the chat plays out and the head does what it's told
+  toShot(tl, "agents", at(1) - 0.06, 0.08);
+  const c0 = at(1), cs = (at(2) - 0.08 - c0) / 4;
+  mark("#chat li", -1, c0 - 0.01);
+  [0, 1, 2, 3].forEach((i) => mark("#chat li", i, c0 + i * cs));
+  tl.to(state, { pan: -40, tilt: 30, duration: cs * 0.7, ease: "back.inOut(1.2)" }, c0 + cs);
+  tl.to(state, { led: 0.15, duration: 0.004 }, c0 + 2 * cs);
+  tl.to(state, { led: 0.6, duration: 0.01 }, c0 + 2 * cs + 0.006);
+  // home assistant: presets, then patrol between them
+  toShot(tl, "home", at(2) - 0.06, 0.08);
+  const h0 = at(2), hs = (at(3) - 0.07 - h0) / 4;
+  mark("#entities li", -1, h0 - 0.01);
+  tl.to(state, { pan: -60, tilt: 40, duration: hs * 0.7, ease: "back.inOut(1.2)" }, h0); mark("#entities li", 0, h0);
+  tl.to(state, { pan: 50, tilt: 20, duration: hs * 0.7, ease: "back.inOut(1.2)" }, h0 + hs); mark("#entities li", 1, h0 + hs);
+  mark("#entities li", 2, h0 + 2 * hs);
+  tl.to(state, { pan: -60, tilt: 40, duration: hs * 0.8, ease: "back.inOut(1.2)" }, h0 + 2 * hs);
+  tl.call(() => (occ.textContent = "Detected"), null, h0 + 3 * hs); mark("#entities li", 3, h0 + 3 * hs);
+  tl.call(() => (occ.textContent = "Clear"), null, h0 + 3 * hs - 0.001);
+  // tracking: range arcs, then small no-overshoot moves after a walking face
   toShot(tl, "motion", at(3) - 0.05, 0.07);
   tl.to(state, { arcs: 1, duration: 0.03 }, at(3));
-  const m0 = at(3) + 0.02, m1 = at(4) - 0.06, step = (m1 - m0) / 6;
-  [[-88, REST_TILT], [88, REST_TILT], [0, -58], [0, 58], [-40, 25], [0, REST_TILT]].forEach(([p, t], i) =>
-    tl.to(state, { pan: p, tilt: t, duration: step * 0.9, ease: "back.inOut(1.2)" }, m0 + i * step));
+  const m0 = at(3) + 0.02, m1 = at(4) - 0.06, step = (m1 - m0) / 7;
+  [[-70, 35], [-45, 38], [-15, 40], [20, 42], [55, 38], [80, 30], [0, REST_TILT]].forEach(([p, t], i) =>
+    tl.to(state, { pan: p, tilt: t, duration: step * 0.9, ease: "power2.out" }, m0 + i * step));
   tl.to(state, { arcs: 0, duration: 0.03 }, m1);
-  // assembly: explode, then put back in build order
-  toShot(tl, "assembly", at(4) - 0.04, 0.06);
-  const a0 = at(4) + 0.01;
+  // custom models: lynx scans the room for its own training shots
+  toShot(tl, "train", at(4) - 0.05, 0.07);
+  const t0 = at(4), ts = (at(5) - 0.06 - t0) / 6;
+  [[-60, 20], [-20, 20], [20, 20], [60, 20], [0, 55], [0, REST_TILT]].forEach(([p, t], i) => {
+    tl.to(state, { pan: p, tilt: t, duration: ts * 0.6 }, t0 + i * ts);
+    tl.to(state, { led: 0.2, duration: 0.003 }, t0 + i * ts + ts * 0.7);
+    tl.to(state, { led: 0.6, duration: 0.006 }, t0 + i * ts + ts * 0.75);
+  });
+  [0, 1, 2].forEach((i) => mark("#train .flow li", i, t0 + i * ts * 2));
+  mark("#train .flow li", -1, t0 - 0.01);
+  // build: explode, then put back in build order
+  toShot(tl, "assembly", at(5) - 0.04, 0.06);
+  const a0 = at(5) + 0.01;
   tl.to(state, { lift: 1, duration: 0.03 }, a0);
   Object.keys(EXPL).forEach((k, i) => tl.to(explode, { [k]: 1, duration: 0.03 }, a0 + i * 0.002));
-  const b0 = a0 + 0.06, b1 = at(5) - 0.05, bs = (b1 - b0) / ASSEMBLY.length;
+  const b0 = a0 + 0.06, b1 = at(6) - 0.05, bs = (b1 - b0) / ASSEMBLY.length;
   ASSEMBLY.forEach(([k], i) => {
     tl.to(explode, { [k]: 0, duration: bs * 0.8, ease: "power3.out" }, b0 + i * bs);
-    tl.call(() => document.querySelectorAll("#steps li").forEach((li, j) => { li.classList.toggle("on", j <= i); li.classList.toggle("now", j === i); }),
-      null, b0 + i * bs);
+    mark("#steps li", i, b0 + i * bs);
   });
   const rest = Object.keys(EXPL).filter((k) => !ASSEMBLY.find(([a]) => a === k));
   rest.forEach((k) => tl.to(explode, { [k]: 0, duration: bs }, b1 - bs));
   tl.to(state, { lift: 0, duration: bs }, b1 - bs * 0.5);
   // cta
-  toShot(tl, "cta", at(5) - 0.04, 0.06);
+  toShot(tl, "cta", at(6) - 0.04, 0.06);
   tl.set({}, {}, 1);
   return tl;
 }
@@ -141,8 +167,6 @@ const railFill = document.querySelector("#rail .fill");
 
 // callouts: each anchored beat's slab points at a spot on the product (rides on that part's rig group)
 const ANCHORS = {
-  pod: { n: groupNode.fixed, p: [C.pan_x + 5.35, rig.pod_face_y, C.floor_z + 13] },
-  sd: { n: tilt, p: [rig.usb_axis[0] + 0.5, (rig.sd_card.min[1] + rig.sd_card.max[1]) / 2, (rig.sd_card.min[2] + rig.sd_card.max[2]) / 2] },
   pivot: { n: tilt, p: [rig.usb_axis[0] + 1.3, C.cy, C.tz] },
 };
 for (const a of Object.values(ANCHORS)) a.local = a.n.worldToLocal(b2t(...a.p));
@@ -160,7 +184,7 @@ function updateChrome() {
   let cur = 0;
   const H = document.documentElement.scrollHeight - viewH, y = (goal * H + viewH * 0.45) / H;
   beatAt.forEach((t, i) => { if (t <= y) cur = i; });
-  railLinks.forEach((a) => a.classList.toggle("on", +a.dataset.to === cur || (cur === 5 && +a.dataset.to === 4)));
+  railLinks.forEach((a) => a.classList.toggle("on", +a.dataset.to === cur || (cur === 6 && +a.dataset.to === 5)));
   // leader line from the visible slab to its anchor
   const beat = beats[cur], key = beat.dataset.anchor, slab = beat.querySelector(".slab");
   if (!key || !slab || !slab.classList.contains("in") || (introTl && introTl.isActive())) { callout.classList.add("hide"); return; }
@@ -235,7 +259,7 @@ renderer.setAnimationLoop(() => {
   if (Math.abs(progress - goal) < 1e-5 && Math.abs(vel) < 1e-5) { progress = goal; vel = 0; }
   if (!introTl || !introTl.isActive()) tl.progress(progress);
   // in the hero and CTA beats the head follows the cursor, gently
-  const idle = progress < at(1) - 0.07 || progress > at(5) - 0.02;
+  const idle = progress < at(1) - 0.07 || progress > at(6) - 0.02;
   lookPan += ((idle ? mouse.x * 28 : 0) - lookPan) * Math.min(1, dt * 3);
   lookTilt += ((idle ? -mouse.y * 14 : 0) - lookTilt) * Math.min(1, dt * 3);
   const base = { pan: state.pan, tilt: state.tilt };
