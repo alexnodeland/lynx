@@ -28,6 +28,9 @@ struct Settings {
   int detectRange = 1;  // RANGE_NEAR | RANGE_FAR
   bool follow = false;
   int followPanSign = -1, followTiltSign = 1;  // for how the board sits in the pod
+  // microSD recording (sd.cpp): off until asked
+  bool recOnDetect = false;
+  int recTimelapseMin = 0;
 };
 
 void loadSettings(Settings& s);  // falls back to defaults per key; mints the token if absent
@@ -36,6 +39,7 @@ void saveWifi(const String& ssid, const String& pass);
 void saveToken(const String& token);
 void saveCamera(const CameraSettings& c);
 void saveDetect(const Settings& s);
+void saveRecording(const Settings& s);
 // presets and the patrol live in their own keys (blobs)
 void loadPresets(Presets& p);
 void savePresets(const Presets& p);

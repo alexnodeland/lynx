@@ -95,6 +95,10 @@ struct FakeDevice : Device {
     patrolOn = s["enabled"].as<bool>();
     return true;
   }
+  void recordings(JsonObject o) override { o["mounted"] = false; }
+  bool setRecording(JsonObjectConst, std::string& e) override { e = "no microSD card"; return false; }
+  bool listRecordings(const char*, JsonArray, std::string& e) override { e = "no microSD card"; return false; }
+  bool readRecording(const char*, std::string&, std::string& e) override { e = "no microSD card"; return false; }
   bool setFollow(JsonObjectConst s, std::string&) override {
     followOn = s["enabled"].as<bool>();
     if (followOn) detectOn = true;
@@ -213,9 +217,9 @@ static void test_bad_json_and_batch() {
 static void test_tools_list_names() {
   auto d = parse(call(R"({"jsonrpc":"2.0","id":5,"method":"tools/list"})", "2025-11-25"));
   JsonArray t = d["result"]["tools"];
-  const char* want[] = {"status", "look", "center", "sweep", "snapshot", "stream_url", "set_camera", "detect", "follow", "preset", "patrol"};
-  TEST_ASSERT_EQUAL(11, t.size());
-  for (int i = 0; i < 11; i++) {
+  const char* want[] = {"status", "look", "center", "sweep", "snapshot", "stream_url", "set_camera", "detect", "follow", "preset", "patrol", "recordings"};
+  TEST_ASSERT_EQUAL(12, t.size());
+  for (int i = 0; i < 12; i++) {
     TEST_ASSERT_EQUAL_STRING(want[i], t[i]["name"]);
     TEST_ASSERT_EQUAL_STRING("object", t[i]["inputSchema"]["type"]);
   }
@@ -304,6 +308,13 @@ static void test_presets_and_patrol() {
   dev.patrolOn = false;
 }
 
+static void test_recordings_without_a_card() {
+  auto d = parse(call(R"({"jsonrpc":"2.0","id":40,"method":"tools/call","params":{"name":"recordings","arguments":{"action":"list"}}})"));
+  TEST_ASSERT_TRUE(d["result"]["isError"].as<bool>());  // a tool error, not a protocol error
+  d = parse(call(R"({"jsonrpc":"2.0","id":41,"method":"tools/call","params":{"name":"recordings","arguments":{"action":"status"}}})"));
+  TEST_ASSERT_FALSE(d["result"]["structuredContent"]["mounted"].as<bool>());
+}
+
 static void test_base64_padding() {
   TEST_ASSERT_EQUAL_STRING("", base64((const uint8_t*)"", 0).c_str());
   TEST_ASSERT_EQUAL_STRING("Zg==", base64((const uint8_t*)"f", 1).c_str());
@@ -326,6 +337,7 @@ int main() {
   RUN_TEST(test_stream_url_and_camera);
   RUN_TEST(test_detect_and_follow);
   RUN_TEST(test_presets_and_patrol);
+  RUN_TEST(test_recordings_without_a_card);
   RUN_TEST(test_base64_padding);
   return UNITY_END();
 }

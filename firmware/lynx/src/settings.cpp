@@ -53,6 +53,8 @@ void loadSettings(Settings& s) {
   s.follow = getB(p, "fol", false);
   s.followPanSign = getI(p, "folp", -1) < 0 ? -1 : 1;
   s.followTiltSign = getI(p, "folt", 1) < 0 ? -1 : 1;
+  s.recOnDetect = getB(p, "recd", false);
+  s.recTimelapseMin = getI(p, "rect", 0);
   p.end();
   if (s.token.length() != 32) {
     s.token = newToken();
@@ -112,6 +114,14 @@ void savePatrol(const PatrolSaved& in) {
   Preferences p;
   p.begin(kNs, false);
   p.putBytes("pat", &in, sizeof in);
+  p.end();
+}
+
+void saveRecording(const Settings& s) {
+  Preferences p;
+  p.begin(kNs, false);
+  p.putBool("recd", s.recOnDetect);
+  p.putInt("rect", s.recTimelapseMin);
   p.end();
 }
 

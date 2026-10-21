@@ -17,6 +17,7 @@
 #include "presets.h"
 #include "net.h"
 #include "ota.h"
+#include "sdcard.h"
 #include "stream.h"
 #include "web.h"
 
@@ -137,6 +138,7 @@ void statusJson(JsonObject j) {
     JsonObject fw = j["firmware"].to<JsonObject>();
     otaJson(fw);
   }
+  sdJson(j["sd"].to<JsonObject>());
   j["uptimeMs"] = millis();
   j["freeHeap"] = ESP.getFreeHeap();
   j["freePsram"] = ESP.getFreePsram();
@@ -634,6 +636,7 @@ void setup() {
   loadPatrol(patrolSaved);
   restartPatrol(millis());
   detectBegin();
+  sdBegin();
   detectSet(settings.detect, settings.detectModel, settings.detectRange);
   netBegin();
   webBegin();

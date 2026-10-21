@@ -160,6 +160,10 @@ class LynxClient:
             raise LynxError(body.get("error", f"HTTP {resp.status}") if isinstance(body, dict) else str(resp.status))
         return body
 
+    async def set_recording(self, **settings: Any) -> dict[str, Any]:
+        """{onDetect, timelapseMin}"""
+        return await self._json("POST", "/api/sd", json=settings)
+
     async def snapshot(self) -> bytes:
         resp = await self._request("GET", "/snapshot.jpg")
         return await resp.read()

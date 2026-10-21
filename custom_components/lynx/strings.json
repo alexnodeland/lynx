@@ -89,6 +89,9 @@
       },
       "quality": {
         "name": "JPEG quality"
+      },
+      "timelapse": {
+        "name": "Timelapse interval"
       }
     },
     "select": {
@@ -126,6 +129,9 @@
       },
       "detected_count": {
         "name": "Detected count"
+      },
+      "sd_used": {
+        "name": "SD card used"
       }
     },
     "switch": {
@@ -143,6 +149,9 @@
       },
       "patrol": {
         "name": "Patrol"
+      },
+      "record_on_detect": {
+        "name": "Record on detection"
       }
     },
     "update": {

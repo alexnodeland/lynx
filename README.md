@@ -142,7 +142,7 @@ npm run dev
 
 ```sh
 just setup   # once: PlatformIO + HA test harness in .venv, web deps, git hooks
-just check   # lint, 58 firmware tests, XIAO build, 20 Home Assistant tests, site build
+just check   # lint, 67 firmware tests, XIAO build, 20 Home Assistant tests, site build
 just         # every other recipe: fw-flash, fw-monitor, web-dev, hass-test, look, snap, mcp-add, release …
 ```
 

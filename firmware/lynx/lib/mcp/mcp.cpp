@@ -175,6 +175,18 @@ static void listTools(JsonObject result) {
   pp["description"] = "Preset names in visiting order (default: all)";
   schemaNumber(props, "dwell_s", 1, 3600, "Seconds at each stop (default 10).");
   t_required(tools[tools.size() - 1], "enabled");
+  addTool(tools, "recordings", "Recordings",
+          "The microSD card: status and recording settings (snapshots on detection, timelapse), list days or a day's "
+          "files, or get one recording as an image.",
+          false, &props);
+  JsonObject ra = props["action"].to<JsonObject>();
+  ra["type"] = "string";
+  for (const char* v : {"status", "configure", "list", "get"}) ra["enum"].add(v);
+  props["path"]["type"] = "string";
+  props["path"]["description"] = "list: /lynx (days) or /lynx/YYYYMMDD; get: a .jpg path from list";
+  props["on_detect"]["type"] = "boolean";
+  schemaNumber(props, "timelapse_min", 0, 1440, "configure: minutes between timelapse frames, 0 = off");
+  t_required(tools[tools.size() - 1], "action");
 }
 
 static void text(JsonArray content, const std::string& s) {
@@ -303,6 +315,49 @@ static bool callTool(Device& dev, const std::string& name, JsonObjectConst args,
       s += buf;
     }
     text(content, s);
+  } else if (name == "recordings") {
+    std::string action = args["action"] | "status", e;
+    if (action == "configure") {
+      JsonDocument a;
+      if (!args["on_detect"].isNull()) a["onDetect"] = args["on_detect"];
+      if (!args["timelapse_min"].isNull()) a["timelapseMin"] = args["timelapse_min"];
+      if (!dev.setRecording(a.as<JsonObjectConst>(), e)) {
+        result["isError"] = true;
+        text(content, e);
+        return true;
+      }
+      action = "status";
+    }
+    if (action == "status") {
+      JsonDocument d;
+      dev.recordings(d.to<JsonObject>());
+      result["structuredContent"] = d.as<JsonVariantConst>();
+      text(content, dump(d));
+    } else if (action == "list") {
+      JsonDocument d;
+      std::string dir = args["path"] | "/lynx";
+      if (!dev.listRecordings(dir.c_str(), d["items"].to<JsonArray>(), e)) {
+        result["isError"] = true;
+        text(content, e);
+        return true;
+      }
+      result["structuredContent"] = d.as<JsonVariantConst>();
+      text(content, dump(d));
+    } else if (action == "get") {
+      std::string jpeg;
+      if (!dev.readRecording(args["path"] | "", jpeg, e)) {
+        result["isError"] = true;
+        text(content, e);
+        return true;
+      }
+      JsonObject img = content.add<JsonObject>();
+      img["type"] = "image";
+      img["data"] = base64((const uint8_t*)jpeg.data(), jpeg.size());
+      img["mimeType"] = "image/jpeg";
+    } else {
+      err = "action must be status, configure, list or get";
+      return false;
+    }
   } else if (name == "follow") {
     if (args["enabled"].isNull()) {
       err = "follow needs enabled: true or false";

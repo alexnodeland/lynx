@@ -49,6 +49,11 @@ class Device {
   virtual void presets(JsonObject out) = 0;
   virtual bool preset(JsonObjectConst args, std::string& error) = 0;     // {action, name, pan?, tilt?}
   virtual bool setPatrol(JsonObjectConst args, std::string& error) = 0;  // {enabled, presets, dwellS}
+  // microSD recordings
+  virtual void recordings(JsonObject out) = 0;
+  virtual bool setRecording(JsonObjectConst args, std::string& error) = 0;  // {onDetect, timelapseMin}
+  virtual bool listRecordings(const char* dir, JsonArray out, std::string& error) = 0;
+  virtual bool readRecording(const char* path, std::string& jpeg, std::string& error) = 0;
 };
 
 constexpr const char* kModernVersion = "2026-07-28";

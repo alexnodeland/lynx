@@ -60,7 +60,7 @@ flowchart TB
 ```
 
 - **Pure logic lives in `lib/`** (motion, MCP, auth, network plan, follow). It has no Arduino includes and
-  runs as native unit tests on every push: 58 of them.
+  runs as native unit tests on every push: 67 of them.
 - **The HTTP servers run in their own FreeRTOS tasks**, so they reach the motion core only through a
   recursive mutex. Port 81 is its own small server: one producer copies each frame once for up to 4
   clients (viewers and `/events` subscribers), each in its own task, so a viewer can never block a control request.

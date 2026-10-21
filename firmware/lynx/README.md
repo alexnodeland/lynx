@@ -24,7 +24,7 @@ Every API call needs a per-device token.
 > These are verified: boot, camera and PSRAM, the captive setup page popping up on a phone, the join,
 > mDNS from macOS, the hotspot closing, REST, MCP (both protocol generations, the Origin guard,
 > token checks, snapshot images) and the MJPEG stream. Still open: servos under load, brownout,
-> `claude mcp add` end to end, and the web flasher. 58 native tests (motion, MCP, auth, network plan, follow, presets) run in CI.
+> `claude mcp add` end to end, and the web flasher. 67 native tests (motion, MCP, auth, network plan, follow, presets, recorder) run in CI.
 
 ## How it fits together
 
@@ -133,6 +133,8 @@ Pure logic lives in `lib/`. It has no Arduino includes, builds for the board and
 | `lib/netplan/` | when the setup hotspot opens and closes, and the join state: pure rules, unit-tested |
 | `src/net.*` | carries out the netplan: hotspot + captive DNS, station mode, mDNS (with IPv6), BOOT button |
 | `src/web.*` | `esp_http_server` on port 80: pages, REST, MCP, snapshot |
+| `lib/recorder/` | what to record (a burst when something appears, then one per 30 s; timelapse) and what to delete (oldest first, past 90 % full) |
+| `src/sdcard.*` | microSD (SPI, CS 21): the recorder task, file listing / download / delete, NTP-dated names |
 | `src/ota.*` | over-the-air updates: image checks, SHA-256, the spare slot, self-confirmation for rollback |
 | `src/stream.*` | port 81: one frame producer shared by up to 4 clients (MJPEG viewers, `/events` subscribers), a task each |
 | `src/camera.*` | esp32-camera on the XIAO Sense pins |
@@ -256,6 +258,10 @@ image and stream URLs go straight into an `<img>`, VLC or Home Assistant.
 | `POST /api/detect/image` | a JPEG (`?debug=1` returns what the model saw) | run detection on your own image: testing and tuning |
 | `GET :81/stream` | `?fps=10` optional | MJPEG live video: several viewers at once (up to 4 connections on :81, a fifth gets `503`) |
 | `GET :81/events` | | **server-sent events:** the full status, pushed whenever it changes (a move, a detection, a setting), plus a ping every 15 s |
+| `GET /api/sd` / `POST /api/sd` | `{"onDetect":true,"timelapseMin":10}` | microSD status (usage, clock, counts) and recording settings (saved; off by default) |
+| `GET /api/sd/list?dir=/lynx` | `dir=/lynx/YYYYMMDD` for a day | recording days, or a day's files |
+| `GET /api/sd/file?path=…` | | one recording (JPEG) |
+| `POST /api/sd/delete` | `{"path":"/lynx/20261021"}` | a recording, or a whole day |
 | `GET /api/update` | | firmware version, running slot, whether a new image is still proving itself |
 | `POST /api/update` | an app image (`lynx-app-vX.bin` / `firmware.bin`); optional `X-Lynx-SHA256` header | over-the-air update; see below |
 | `POST /mcp` | JSON-RPC | MCP, below |
@@ -295,6 +301,7 @@ It speaks both protocol generations:
 | `follow` | `enabled` | follow the nearest face on/off |
 | `preset` | `action` (list/go/save/delete), `name`, `pan`/`tilt` | named positions |
 | `patrol` | `enabled`, `presets`, `dwell_s` | tour presets on a loop |
+| `recordings` | `action` (status/configure/list/get), `path`, `on_detect`, `timelapse_min` | the microSD card; `get` returns a recording as an image |
 
 ```sh
 claude mcp add --transport http lynx http://lynx-1a2b.local/mcp --header "Authorization: Bearer $TOKEN"
@@ -360,6 +367,16 @@ again, unless the bootloader itself changes.
 
 Each release carries `lynx-vX.bin` (merged: the web flasher, esptool), `lynx-app-vX.bin` (over the air)
 and `lynx-vX.json` (both SHA-256s, which Home Assistant checks before it flashes).
+
+## Recording to microSD
+
+With a card in the XIAO's slot, lynx can save **snapshots when it detects something** (a burst of three
+as it appears, then one every 30 s while it stays) and a **timelapse** (one frame every N minutes).
+Files go to `/lynx/YYYYMMDD/HHMMSS_kind.jpg`, dated in UTC from NTP. Once the card passes 90 %, the oldest
+recordings are deleted until it's back under 80 %. **Recording is off until you turn it on**
+(`POST /api/sd`, MCP `recordings`, or Home Assistant).
+
+*Not yet verified with a card in the slot. The bring-up board had none. The logic is native-tested.*
 
 ## Presets and patrol
 

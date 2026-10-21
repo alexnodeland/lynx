@@ -14,6 +14,7 @@
 #include "camera.h"
 #include "detect.h"
 #include "ota.h"
+#include "sdcard.h"
 #include "mcp.h"
 #include "net.h"
 #include "pages.h"
@@ -131,6 +132,10 @@ class LynxDevice : public Device {
   void presets(JsonObject o) override { presetsJson(o); }
   bool preset(JsonObjectConst s, std::string& e) override { return presetAction(s, e); }
   bool setPatrol(JsonObjectConst s, std::string& e) override { return applyPatrolJson(s, e); }
+  void recordings(JsonObject o) override { sdJson(o); }
+  bool setRecording(JsonObjectConst s, std::string& e) override { return applySdJson(s, e); }
+  bool listRecordings(const char* dir, JsonArray out, std::string& e) override { return sdList(dir, out, e); }
+  bool readRecording(const char* path, std::string& jpeg, std::string& e) override { return sdRead(path, jpeg, e); }
 };
 static LynxDevice device;
 
@@ -175,6 +180,7 @@ static esp_err_t infoHandler(httpd_req_t* r) {
   e["presets"] = "GET|POST /api/presets {action: save|go|delete, name}";
   e["patrol"] = "POST /api/patrol {enabled, presets, dwellS}";
   e["update"] = "GET|POST /api/update (an app image: firmware.bin; rolls back by itself if it fails)";
+  e["recordings"] = "GET|POST /api/sd {onDetect, timelapseMin}; /api/sd/list?dir=; /api/sd/file?path=; POST /api/sd/delete";
   e["mcp"] = "POST /mcp";
   d["auth"] = "Authorization: Bearer <token> (or ?token= for snapshot and stream URLs)";
   return sendJson(r, d);
@@ -309,6 +315,55 @@ static esp_err_t followSetHandler(httpd_req_t* r) {
   if (!body(r, b) || deserializeJson(in, b)) return sendError(r, "400 Bad Request", "expected JSON {enabled}");
   if (!applyFollowJson(in.as<JsonObjectConst>(), err)) return sendError(r, "400 Bad Request", err.c_str());
   return detectionsHandler(r);
+}
+
+// recordings: GET|POST /api/sd; GET /api/sd/list?dir=; GET /api/sd/file?path=; POST /api/sd/delete {path}
+static std::string urlDecode(const std::string& s) {
+  std::string o;
+  for (size_t i = 0; i < s.size(); i++) {
+    if (s[i] == '%' && i + 2 < s.size()) {
+      o += (char)strtol(s.substr(i + 1, 2).c_str(), nullptr, 16);
+      i += 2;
+    } else o += s[i] == '+' ? ' ' : s[i];
+  }
+  return o;
+}
+static esp_err_t sdGetHandler(httpd_req_t* r) {
+  if (!authorizedReq(r)) return ESP_OK;
+  JsonDocument d;
+  sdJson(d.to<JsonObject>());
+  return sendJson(r, d);
+}
+static esp_err_t sdPostHandler(httpd_req_t* r) {
+  if (!authorizedReq(r)) return ESP_OK;
+  std::string b, err;
+  JsonDocument in;
+  if (!body(r, b) || deserializeJson(in, b)) return sendError(r, "400 Bad Request", "expected JSON {onDetect, timelapseMin}");
+  if (!applySdJson(in.as<JsonObjectConst>(), err)) return sendError(r, "409 Conflict", err.c_str());
+  return sdGetHandler(r);
+}
+static esp_err_t sdListHandler(httpd_req_t* r) {
+  if (!authorizedReq(r)) return ESP_OK;
+  std::string dir = urlDecode(queryValue(query(r), "dir"));
+  if (dir.empty()) dir = "/lynx";
+  JsonDocument d;
+  d["dir"] = dir;
+  std::string err;
+  if (!sdList(dir.c_str(), d["items"].to<JsonArray>(), err)) return sendError(r, "404 Not Found", err.c_str());
+  return sendJson(r, d);
+}
+static esp_err_t sdFileHandler(httpd_req_t* r) {
+  if (!authorizedReq(r)) return ESP_OK;
+  return sdSendFile(r, urlDecode(queryValue(query(r), "path")).c_str());
+}
+static esp_err_t sdDeleteHandler(httpd_req_t* r) {
+  if (!authorizedReq(r)) return ESP_OK;
+  std::string b, err;
+  JsonDocument in;
+  if (!body(r, b) || deserializeJson(in, b) || !in["path"].is<const char*>())
+    return sendError(r, "400 Bad Request", "expected JSON {path}");
+  if (!sdDelete(in["path"].as<const char*>(), err)) return sendError(r, "404 Not Found", err.c_str());
+  return sdGetHandler(r);
 }
 
 // firmware: GET /api/update (version, slots); POST /api/update (an app image: firmware.bin)
@@ -482,6 +537,11 @@ void webBegin() {
     route(api, "/api/detections", HTTP_GET, detectionsHandler);
     route(api, "/api/presets", HTTP_GET, presetsGetHandler);
     route(api, "/api/update", HTTP_GET, updateGetHandler);
+    route(api, "/api/sd", HTTP_GET, sdGetHandler);
+    route(api, "/api/sd", HTTP_POST, sdPostHandler);
+    route(api, "/api/sd/list", HTTP_GET, sdListHandler);
+    route(api, "/api/sd/file", HTTP_GET, sdFileHandler);
+    route(api, "/api/sd/delete", HTTP_POST, sdDeleteHandler);
     route(api, "/api/update", HTTP_POST, updatePostHandler);
     route(api, "/api/presets", HTTP_POST, presetsPostHandler);
     route(api, "/api/patrol", HTTP_POST, patrolPostHandler);

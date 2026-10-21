@@ -33,6 +33,7 @@ It runs entirely on your LAN: no cloud, no MQTT broker.
 | `switch.…_detection`, `switch.…_follow` | on-device detection, and follow mode (keeps the nearest face in frame) |
 | `select.…_detect`, `select.…_detection_range` | faces or cat faces; near or far |
 | `select.…_preset`, `switch.…_patrol` | go to a named position; tour them on a loop |
+| `switch.…_record_on_detection`, `number.…_timelapse_interval`, `sensor.…_sd_card_used` | microSD recording (available with a card in the slot) |
 | `update.…_firmware` | firmware updates from GitHub releases, installed over Wi-Fi with progress; the device rolls back by itself if one fails |
 | `sensor.…_wi_fi_signal`, `sensor.…_last_boot`, `sensor.…_free_memory` | diagnostics |
 

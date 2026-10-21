@@ -55,6 +55,7 @@ STATUS: dict[str, Any] = {
     },
     "presets": [{"name": "door", "pan": 60, "tilt": 50}, {"name": "desk", "pan": -30, "tilt": 40}],
     "patrol": {"enabled": True, "dwellS": 10, "presets": ["door", "desk"], "at": "desk"},
+    "sd": {"mounted": True, "onDetect": False, "timelapseMin": 0, "totalMB": 1000.0, "usedMB": 250.0},
     "version": "0.3.0",
     "uptimeMs": 600000,
     "freeHeap": 224000,
@@ -103,6 +104,7 @@ def lynx(aioclient_mock, status):
     aioclient_mock.post(f"{BASE}/api/detect", json={"enabled": True})
     aioclient_mock.post(f"{BASE}/api/follow", json={"enabled": True})
     aioclient_mock.post(f"{BASE}/api/presets", json={"presets": status["presets"], "patrol": status["patrol"]})
+    aioclient_mock.post(f"{BASE}/api/sd", json=status["sd"])
     aioclient_mock.post(f"{BASE}/api/patrol", json={"presets": status["presets"], "patrol": status["patrol"]})
     aioclient_mock.get(f"{BASE}/snapshot.jpg", content=b"\xff\xd8\xff\xd9")
     return aioclient_mock

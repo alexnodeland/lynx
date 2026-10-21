@@ -14,7 +14,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import SIGNAL_STRENGTH_DECIBELS_MILLIWATT, EntityCategory, UnitOfInformation
+from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT, EntityCategory, UnitOfInformation
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
@@ -45,6 +45,14 @@ SENSORS: tuple[LynxSensorDescription, ...] = (
         translation_key="detected_count",
         state_class=SensorStateClass.MEASUREMENT,
         value=lambda s: s["detect"]["count"] if s["detect"]["enabled"] else None,
+    ),
+    LynxSensorDescription(
+        key="sd_used",
+        translation_key="sd_used",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value=lambda s: round(100 * s["sd"]["usedMB"] / s["sd"]["totalMB"], 1) if s["sd"].get("mounted") else None,
     ),
     LynxSensorDescription(
         key="free_heap",

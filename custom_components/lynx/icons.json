@@ -20,6 +20,9 @@
       },
       "quality": {
         "default": "mdi:quality-high"
+      },
+      "timelapse": {
+        "default": "mdi:timer-play-outline"
       }
     },
     "select": {
@@ -51,6 +54,9 @@
       },
       "patrol": {
         "default": "mdi:routes"
+      },
+      "record_on_detect": {
+        "default": "mdi:record-rec"
       }
     },
     "sensor": {
@@ -59,6 +65,9 @@
       },
       "detected_count": {
         "default": "mdi:counter"
+      },
+      "sd_used": {
+        "default": "mdi:micro-sd"
       }
     },
     "binary_sensor": {

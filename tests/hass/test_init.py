@@ -164,6 +164,30 @@ async def test_pushed_events_update_entities(hass, entry, aioclient_mock, status
     assert events_calls and events_calls[0][3]["Authorization"] == f"Bearer {TOKEN}"
 
 
+async def test_recording_entities(hass, entry, lynx):
+    await setup(hass, entry)
+    assert hass.states.get("sensor.lynx_42e0_sd_card_used").state == "25.0"
+    assert hass.states.get("switch.lynx_42e0_record_on_detection").state == "off"
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": "switch.lynx_42e0_record_on_detection"}, blocking=True
+    )
+    await hass.services.async_call(
+        "number", "set_value", {"entity_id": "number.lynx_42e0_timelapse_interval", "value": 15}, blocking=True
+    )
+    bodies = [c[2] for c in posts(lynx, "/api/sd")]
+    assert {"onDetect": True} in bodies and {"timelapseMin": 15} in bodies
+
+
+async def test_recording_unavailable_without_a_card(hass, entry, aioclient_mock, status):
+    status["sd"] = {"mounted": False, "onDetect": False, "timelapseMin": 0}
+    aioclient_mock.get(f"{BASE}/api/info", json=INFO)
+    aioclient_mock.get(f"{BASE}/api/status", json=status)
+    await setup(hass, entry)
+    assert hass.states.get("switch.lynx_42e0_record_on_detection").state == "unavailable"
+    assert hass.states.get("number.lynx_42e0_timelapse_interval").state == "unavailable"
+    assert hass.states.get("sensor.lynx_42e0_sd_card_used").state == "unknown"
+
+
 async def test_camera_image(hass, entry, lynx):
     await setup(hass, entry)
     image = await async_get_image(hass, "camera.lynx_42e0")

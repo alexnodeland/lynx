@@ -29,6 +29,7 @@ SWITCHES: tuple[LynxSwitchDescription, ...] = (
     LynxSwitchDescription(key="detection", translation_key="detection", field="enabled", section="detect"),
     LynxSwitchDescription(key="follow", translation_key="follow", field="follow", section="detect"),
     LynxSwitchDescription(key="patrol", translation_key="patrol", field="enabled", section="patrol"),
+    LynxSwitchDescription(key="record_on_detect", translation_key="record_on_detect", field="onDetect", section="sd"),
     LynxSwitchDescription(key="vflip", translation_key="vflip", field="vflip", entity_category=EntityCategory.CONFIG),
     LynxSwitchDescription(
         key="hmirror", translation_key="hmirror", field="hmirror", entity_category=EntityCategory.CONFIG
@@ -50,6 +51,12 @@ class LynxSwitch(LynxEntity, SwitchEntity):
         self.entity_description = description
 
     @property
+    def available(self) -> bool:
+        if self.entity_description.section == "sd":  # recording needs a card
+            return super().available and bool(self.status.get("sd", {}).get("mounted"))
+        return super().available
+
+    @property
     def is_on(self) -> bool | None:
         return self.status.get(self.entity_description.section, {}).get(self.entity_description.field)
 
@@ -62,6 +69,8 @@ class LynxSwitch(LynxEntity, SwitchEntity):
                 await client.set_follow(on)
             elif d.key == "patrol":
                 await client.set_patrol(enabled=on)
+            elif d.key == "record_on_detect":
+                await client.set_recording(onDetect=on)
             else:
                 await client.set_camera(**{d.field: on})
         except LynxError as err:

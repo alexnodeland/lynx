@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.number import NumberEntity, NumberEntityDescription, NumberMode
-from homeassistant.const import DEGREE, EntityCategory
+from homeassistant.const import DEGREE, EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -25,6 +25,7 @@ class LynxNumberDescription(NumberEntityDescription):
     value: Callable[[dict[str, Any]], float | None]
     set: Callable[[LynxClient, float], Awaitable[dict[str, Any]]]
     limits: Callable[[dict[str, Any]], tuple[float, float]] | None = None  # live soft limits from the device
+    needs_sd: bool = False
 
 
 def _axis_limits(axis: str) -> Callable[[dict[str, Any]], tuple[float, float]]:
@@ -67,6 +68,19 @@ NUMBERS: tuple[LynxNumberDescription, ...] = (
         set=lambda c, v: c.set_camera(brightness=int(v)),
     ),
     LynxNumberDescription(
+        key="timelapse",
+        translation_key="timelapse",
+        entity_category=EntityCategory.CONFIG,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        native_min_value=0,
+        native_max_value=1440,
+        native_step=1,
+        mode=NumberMode.BOX,
+        value=lambda s: s["sd"]["timelapseMin"],
+        set=lambda c, v: c.set_recording(timelapseMin=int(v)),
+        needs_sd=True,
+    ),
+    LynxNumberDescription(
         key="quality",
         translation_key="quality",
         entity_category=EntityCategory.CONFIG,
@@ -92,6 +106,12 @@ class LynxNumber(LynxEntity, NumberEntity):
     def __init__(self, coordinator: LynxCoordinator, description: LynxNumberDescription) -> None:
         super().__init__(coordinator, description.key)
         self.entity_description = description
+
+    @property
+    def available(self) -> bool:
+        if self.entity_description.needs_sd:
+            return super().available and bool(self.status.get("sd", {}).get("mounted"))
+        return super().available
 
     @property
     def native_value(self) -> float | None:
