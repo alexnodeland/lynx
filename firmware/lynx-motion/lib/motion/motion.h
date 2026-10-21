@@ -80,7 +80,10 @@ class Motion {
  public:
   void begin(const AxisCal& pan, const AxisCal& tilt, const MotionConfig& cfg, uint32_t nowMs);
   uint32_t look(float pan, float tilt, int32_t ms, uint32_t nowMs);  // cancels sweep
-  void center(uint32_t nowMs) { look(0, 0, -1, nowMs); }
+  // Rest pose: pan centred, lens leaning 45 deg toward the front (tilt 0 = lens straight up).
+  // Positive tilt must tip the lens forward; if your servo turns the other way, set the tilt invert flag.
+  static constexpr float kRestTiltDeg = 45.0f;
+  void center(uint32_t nowMs) { look(0, kRestTiltDeg, -1, nowMs); }
   void startSweep(uint32_t nowMs);
   bool sweeping() const { return sweepStep_ >= 0; }
   void update(uint32_t nowMs);

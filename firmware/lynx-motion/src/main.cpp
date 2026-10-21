@@ -101,7 +101,7 @@ static void printHelp() {
       "  pan <deg>                 move pan (tilt unchanged)\n"
       "  tilt <deg>                move tilt (pan unchanged)\n"
       "  look <pan> <tilt> [ms]    move both, optional duration\n"
-      "  center                    return to 0,0\n"
+      "  center                    return to rest (pan 0, tilt 45)\n"
       "  sweep                     demo the full soft-limit range\n"
       "  limits                    show soft limits\n"
       "  limits <axis> <min> <max> set soft limits (inside mechanical +/-90 pan, +/-60 tilt)\n"

@@ -104,7 +104,8 @@ const ASSEMBLY = [
 document.getElementById("steps").innerHTML = ASSEMBLY.map(([, t]) => `<li>${t}</li>`).join("");
 // explode amount per part (0 assembled .. 1 exploded); the tilt group lifts off the yoke as a whole
 const explode = Object.fromEntries(Object.keys(EXPL).map((k) => [k, 0]));
-const state = { pan: 0, tilt: 0, lift: 0, plug: 1, card: 1, led: 0, arcs: 0 };
+const REST_TILT = 45;   // at rest the lens leans 45 deg toward the front (0 = straight up)
+const state = { pan: 0, tilt: REST_TILT, lift: 0, plug: 1, card: 1, led: 0, arcs: 0 };
 const LIFT_MM = 22;
 
 function applyParts() {
@@ -266,13 +267,13 @@ function buildTimeline() {
   tl.to(state, { led: 1, duration: 0.01 }, at(1) + 0.075);
   // sd
   toShot(tl, "sd", at(2) - 0.08, 0.11);                    // slower, gentler move into the close-up
-  tl.to(state, { pan: 0, tilt: 0, duration: 0.08 }, at(2) - 0.08);
+  tl.to(state, { pan: 0, tilt: REST_TILT, duration: 0.08 }, at(2) - 0.08);
   tl.to(state, { card: 0, duration: 0.05 }, at(2) + 0.02);
   // motion: sweep with eased glances
   toShot(tl, "motion", at(3) - 0.05, 0.07);
   tl.to(state, { arcs: 1, duration: 0.03 }, at(3));
   const m0 = at(3) + 0.02, m1 = at(4) - 0.06, step = (m1 - m0) / 6;
-  [[-88, 0], [88, 0], [0, -58], [0, 58], [-40, 25], [0, 0]].forEach(([p, t], i) =>
+  [[-88, REST_TILT], [88, REST_TILT], [0, -58], [0, 58], [-40, 25], [0, REST_TILT]].forEach(([p, t], i) =>
     tl.to(state, { pan: p, tilt: t, duration: step * 0.9, ease: "back.inOut(1.2)" }, m0 + i * step));
   tl.to(state, { arcs: 0, duration: 0.03 }, m1);
   // assembly: explode, then put back in build order
