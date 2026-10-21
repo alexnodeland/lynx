@@ -216,4 +216,4 @@ just         # every other recipe: fw-flash, fw-monitor, web-dev, hass-test, loo
 - Firmware and web: MIT
 - Docs and media: CC-BY-SA-4.0
 
-The licence texts are in [`LICENSES/`](LICENSES).
+The licence texts are in [`LICENSES/`](LICENSES). The root [`LICENSE`](LICENSE) is the MIT text for the software, so GitHub and HACS can detect it; [`NOTICE`](NOTICE) maps each folder to its licence.

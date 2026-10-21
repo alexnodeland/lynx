@@ -1,0 +1,7 @@
+lynx is licensed per folder. The root LICENSE file is the MIT licence, which covers the software.
+
+  Software (firmware/, custom_components/, web/, tools/, scripts)   MIT           LICENSES/MIT.txt
+  Hardware (hardware/: CAD, STL/STEP, PCB, BOM)                     CERN-OHL-S-2.0 LICENSES/CERN-OHL-S-2.0.txt
+  Documentation and media (docs/, media/, *.md)                     CC-BY-SA-4.0  LICENSES/CC-BY-SA-4.0.txt
+
+Each file's SPDX-License-Identifier header is authoritative where it is present.
