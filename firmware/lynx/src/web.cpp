@@ -13,6 +13,7 @@
 #include "auth.h"
 #include "camera.h"
 #include "detect.h"
+#include "ota.h"
 #include "mcp.h"
 #include "net.h"
 #include "pages.h"
@@ -173,6 +174,7 @@ static esp_err_t infoHandler(httpd_req_t* r) {
   e["follow"] = "POST /api/follow {enabled}";
   e["presets"] = "GET|POST /api/presets {action: save|go|delete, name}";
   e["patrol"] = "POST /api/patrol {enabled, presets, dwellS}";
+  e["update"] = "GET|POST /api/update (an app image: firmware.bin; rolls back by itself if it fails)";
   e["mcp"] = "POST /mcp";
   d["auth"] = "Authorization: Bearer <token> (or ?token= for snapshot and stream URLs)";
   return sendJson(r, d);
@@ -307,6 +309,18 @@ static esp_err_t followSetHandler(httpd_req_t* r) {
   if (!body(r, b) || deserializeJson(in, b)) return sendError(r, "400 Bad Request", "expected JSON {enabled}");
   if (!applyFollowJson(in.as<JsonObjectConst>(), err)) return sendError(r, "400 Bad Request", err.c_str());
   return detectionsHandler(r);
+}
+
+// firmware: GET /api/update (version, slots); POST /api/update (an app image: firmware.bin)
+static esp_err_t updateGetHandler(httpd_req_t* r) {
+  if (!authorizedReq(r)) return ESP_OK;
+  JsonDocument d;
+  otaJson(d.to<JsonObject>());
+  return sendJson(r, d);
+}
+static esp_err_t updatePostHandler(httpd_req_t* r) {
+  if (!authorizedReq(r)) return ESP_OK;
+  return otaUpload(r);
 }
 
 // presets + patrol: GET /api/presets; POST /api/presets {action, name, ...}; POST /api/patrol {...}
@@ -450,6 +464,7 @@ void webBegin() {
   c.ctrl_port = 32768;
   c.max_uri_handlers = 40;
   c.stack_size = 8192;
+  c.recv_wait_timeout = 15;  // an OTA upload over slow Wi-Fi
   c.lru_purge_enable = true;
   c.max_open_sockets = 7;
   if (httpd_start(&api, &c) == ESP_OK) {
@@ -466,6 +481,8 @@ void webBegin() {
     route(api, "/snapshot.jpg", HTTP_GET, snapshotHandler);
     route(api, "/api/detections", HTTP_GET, detectionsHandler);
     route(api, "/api/presets", HTTP_GET, presetsGetHandler);
+    route(api, "/api/update", HTTP_GET, updateGetHandler);
+    route(api, "/api/update", HTTP_POST, updatePostHandler);
     route(api, "/api/presets", HTTP_POST, presetsPostHandler);
     route(api, "/api/patrol", HTTP_POST, patrolPostHandler);
     route(api, "/api/detect", HTTP_POST, detectSetHandler);

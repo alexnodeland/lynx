@@ -143,6 +143,23 @@ class LynxClient:
         except (TimeoutError, aiohttp.ClientError) as err:
             raise LynxConnectionError(f"events: {err}") from err
 
+    async def update_firmware(self, image: bytes, sha256: str | None = None) -> dict[str, Any]:
+        """Upload an app image (lynx-app-*.bin); the device checks it, flashes the spare slot and reboots."""
+        headers = {**self.auth_headers, "Content-Type": "application/octet-stream"}
+        if sha256:
+            headers["X-Lynx-SHA256"] = sha256
+        try:
+            async with asyncio.timeout(180):
+                resp = await self._session.post(f"{self.base_url}/api/update", data=image, headers=headers)
+                body = await resp.json(content_type=None)
+        except (TimeoutError, aiohttp.ClientError, ValueError) as err:
+            raise LynxConnectionError(f"update upload: {err}") from err
+        if resp.status == 401:
+            raise LynxAuthError("token rejected")
+        if resp.status != 200:
+            raise LynxError(body.get("error", f"HTTP {resp.status}") if isinstance(body, dict) else str(resp.status))
+        return body
+
     async def snapshot(self) -> bytes:
         resp = await self._request("GET", "/snapshot.jpg")
         return await resp.read()

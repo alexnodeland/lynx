@@ -16,6 +16,7 @@
 #include "follow.h"
 #include "presets.h"
 #include "net.h"
+#include "ota.h"
 #include "stream.h"
 #include "web.h"
 
@@ -132,6 +133,10 @@ void statusJson(JsonObject j) {
   n["setupHotspot"] = setupMode();
   if (setupMode()) n["setupClosesInMs"] = setupClosesInMs();
   j["version"] = kVersion;
+  {
+    JsonObject fw = j["firmware"].to<JsonObject>();
+    otaJson(fw);
+  }
   j["uptimeMs"] = millis();
   j["freeHeap"] = ESP.getFreeHeap();
   j["freePsram"] = ESP.getFreePsram();
@@ -633,6 +638,12 @@ void setup() {
   netBegin();
   webBegin();
   streamBegin();
+  otaBegin();
+#ifdef LYNX_CRASH_TEST  // a deliberately broken build, to prove OTA rollback: crashes before it can confirm itself
+  delay(5000);
+  Serial.println("LYNX_CRASH_TEST: crashing on purpose");
+  abort();
+#endif
   Serial.printf("lynx %s ready as %s (type 'help')\n", kVersion, hostName().c_str());
 }
 
@@ -642,6 +653,7 @@ void loop() {
   netLoop();
   pollFollow(now);
   pollPatrol(now);
+  otaLoop();
   {
     MotionLock l;
     motion.update(now);

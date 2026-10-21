@@ -133,6 +133,7 @@ Pure logic lives in `lib/`. It has no Arduino includes, builds for the board and
 | `lib/netplan/` | when the setup hotspot opens and closes, and the join state: pure rules, unit-tested |
 | `src/net.*` | carries out the netplan: hotspot + captive DNS, station mode, mDNS (with IPv6), BOOT button |
 | `src/web.*` | `esp_http_server` on port 80: pages, REST, MCP, snapshot |
+| `src/ota.*` | over-the-air updates: image checks, SHA-256, the spare slot, self-confirmation for rollback |
 | `src/stream.*` | port 81: one frame producer shared by up to 4 clients (MJPEG viewers, `/events` subscribers), a task each |
 | `src/camera.*` | esp32-camera on the XIAO Sense pins |
 | `src/detect.*` | ESP-DL face / cat-face detection in its own task, on a scaled copy of each JPEG |
@@ -255,6 +256,8 @@ image and stream URLs go straight into an `<img>`, VLC or Home Assistant.
 | `POST /api/detect/image` | a JPEG (`?debug=1` returns what the model saw) | run detection on your own image: testing and tuning |
 | `GET :81/stream` | `?fps=10` optional | MJPEG live video: several viewers at once (up to 4 connections on :81, a fifth gets `503`) |
 | `GET :81/events` | | **server-sent events:** the full status, pushed whenever it changes (a move, a detection, a setting), plus a ping every 15 s |
+| `GET /api/update` | | firmware version, running slot, whether a new image is still proving itself |
+| `POST /api/update` | an app image (`lynx-app-vX.bin` / `firmware.bin`); optional `X-Lynx-SHA256` header | over-the-air update; see below |
 | `POST /mcp` | JSON-RPC | MCP, below |
 
 ```sh
@@ -341,6 +344,22 @@ It runs at about 3.6 fps with `range: far` and about 4.1 fps with `near`.
 export: `just capture`, then label and train, then `just model-add export.zip`, and it becomes `model: custom`.
 See [docs/custom-models.md](../../docs/custom-models.md). Proven on the board with a public Edge Impulse
 export: +0.72 MB flash, ~1.5 fps for a 96 × 96 classifier.
+
+## Over-the-air updates
+
+Update over Wi-Fi from the dashboard's *Firmware* card, from Home Assistant (an update entity that watches
+GitHub releases), or with `just ota`. The upload is checked before anything is flashed. It must be an
+ESP32-S3 app image (not the merged `lynx.bin` the web flasher uses), and if you send `X-Lynx-SHA256`,
+the hash must match. lynx then writes it to the spare slot and reboots.
+
+**It rolls back by itself.** A new image starts *pending verification* and only confirms itself after
+45 s of healthy running. If it crashes, hangs (the watchdog resets it) or reboots before then, the
+bootloader goes back to the previous image. That was tested on the board with a build that crashes on purpose
+(`-DLYNX_CRASH_TEST`): it went back to the good image with no USB. A USB flash is never needed
+again, unless the bootloader itself changes.
+
+Each release carries `lynx-vX.bin` (merged: the web flasher, esptool), `lynx-app-vX.bin` (over the air)
+and `lynx-vX.json` (both SHA-256s, which Home Assistant checks before it flashes).
 
 ## Presets and patrol
 

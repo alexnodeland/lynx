@@ -109,6 +109,13 @@ static const char kDashboardHtml[] = R"HTML(<!doctype html><html lang="en"><head
   <label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="follow" style="width:auto"> Follow the nearest face</label></div>
 </section>
 <section class="card">
+  <h2>Firmware <span class="mono" id="fwv" style="color:var(--dim);font-weight:400"></span></h2>
+  <p>Update over Wi-Fi with a release's <code>lynx-app-…bin</code> (or a build's <code>firmware.bin</code>). If the new
+  version fails to start, lynx goes back to this one by itself.</p>
+  <div class="row"><input type="file" id="fwfile" accept=".bin" style="width:auto;flex:1"><button id="fwgo">Update</button></div>
+  <p class="mono" id="fwmsg" style="margin-top:10px"></p>
+</section>
+<section class="card">
   <h2>Connect an AI agent (MCP)</h2>
   <p>lynx speaks the Model Context Protocol at <code>/mcp</code>. Tools: status, look, center, sweep, snapshot, stream_url, set_camera, detect, follow.</p>
   <label>Claude Code <button class="copy" data-c="mcp1">copy</button></label><pre id="mcp1"></pre>
@@ -148,13 +155,23 @@ async function pollDetect(){ clearTimeout(dTimer); try{ const d=await (await api
   $('dmodel').value=d.enabled?d.model:'off'; $('follow').checked=!!d.follow;
   $('dsum').textContent=d.enabled?`· ${(d.objects||[]).length} in view · ${d.fps.toFixed(1)} fps`:''; drawBoxes(d.enabled?d:null);
   dTimer=setTimeout(pollDetect,d.enabled?300:3000) }catch(e){ dTimer=setTimeout(pollDetect,3000) } }
-function show(s){ $('gate').classList.add('hide'); $('app').classList.remove('hide'); pollDetect();
+function show(s){ $('gate').classList.add('hide'); $('app').classList.remove('hide'); pollDetect(); fwInfo();
   $('pan').value=Math.round(s.pan.target); $('tilt').value=Math.round(s.tilt.target); lbl(); fill() }
 function lbl(){ $('pv').textContent=$('pan').value+'°'; $('tv').textContent=$('tilt').value+'°' }
 let tmr=0; function send(){ lbl(); clearTimeout(tmr); tmr=setTimeout(()=>api('/api/position',{method:'POST',body:JSON.stringify({pan:+$('pan').value,tilt:+$('tilt').value})}),60) }
 $('pan').oninput=$('tilt').oninput=send;
 $('center').onclick=async()=>{const s=await (await api('/api/center',{method:'POST'})).json(); $('pan').value=Math.round(s.pan.target); $('tilt').value=Math.round(s.tilt.target); lbl()};
 $('sweep').onclick=()=>api('/api/sweep',{method:'POST'});
+async function fwInfo(){ try{ const u=await (await api('/api/update')).json(); $('fwv').textContent=`· v${u.version} · ${u.running}${u.pendingVerify?' · confirming…':''}` }catch(e){} }
+$('fwgo').onclick=()=>{ const f=$('fwfile').files[0]; if(!f) return $('fwfile').click();
+  const x=new XMLHttpRequest(); x.open('POST','/api/update'); x.setRequestHeader('Authorization','Bearer '+tok);
+  x.upload.onprogress=e=>{ if(e.lengthComputable) $('fwmsg').textContent=`uploading ${Math.round(100*e.loaded/e.total)} %` };
+  x.onload=()=>{ let r={}; try{r=JSON.parse(x.responseText)}catch(e){}
+    if(x.status!==200){ $('fwmsg').textContent='update refused: '+(r.error||x.status); return }
+    $('fwmsg').textContent='rebooting into the new firmware…'; const t0=Date.now();
+    const back=async()=>{ try{ const i=await (await fetch('/api/info',{cache:'no-store'})).json(); $('fwmsg').textContent=`back, running v${i.version}`; fwInfo() }catch(e){ if(Date.now()-t0<90000) setTimeout(back,2000); else $('fwmsg').textContent='not back yet: check the serial console' } };
+    setTimeout(back,4000) };
+  x.onerror=()=>{ $('fwmsg').textContent='upload failed' }; x.send(f) };
 $('dmodel').onchange=async()=>{ const v=$('dmodel').value; await api('/api/detect',{method:'POST',body:JSON.stringify(v==='off'?{enabled:false}:{enabled:true,model:v})}); pollDetect() };
 $('follow').onchange=async()=>{ await api('/api/follow',{method:'POST',body:JSON.stringify({enabled:$('follow').checked})}); pollDetect() };
 $('save').onclick=async()=>{ tok=$('t').value.trim(); const s=await check();

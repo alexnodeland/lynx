@@ -10,6 +10,7 @@
 #include <cstring>
 
 #include "camera.h"
+#include "ota.h"
 #include "detect_ei.h"
 #include "cat_face_detect_mn03.hpp"
 #include "human_face_detect_mnp01.hpp"
@@ -92,7 +93,7 @@ static void task(void*) {
   uint32_t lastT = 0;
   float fps = 0;
   for (;;) {
-    if (!enabled || !cameraReady()) {
+    if (!enabled || !cameraReady() || otaInProgress()) {
       if (testJpeg) {  // switched off with a supplied image waiting: answer, so the caller never waits forever
         testOk = false;
         testJpeg = nullptr;

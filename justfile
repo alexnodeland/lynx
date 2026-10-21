@@ -100,6 +100,11 @@ look pan tilt:
 snap:
     curl -s -H "Authorization: Bearer $LYNX_TOKEN" -o snapshot.jpg http://{{host}}/snapshot.jpg && echo snapshot.jpg
 
+# update the device over Wi-Fi with this build (or FILE=path/to/lynx-app-vX.bin); it rolls back by itself if it fails
+ota: fw-build
+    f=${FILE:-{{fw}}/.pio/build/xiao/firmware.bin}; sha=$(shasum -a 256 "$f" | cut -d' ' -f1); \
+      curl -fsS -X POST -H "Authorization: Bearer $LYNX_TOKEN" -H "X-Lynx-SHA256: $sha" --data-binary @"$f" http://{{host}}/api/update && echo
+
 # register the device as an MCP server in Claude Code
 mcp-add:
     claude mcp add --transport http lynx http://{{host}}/mcp --header "Authorization: Bearer $LYNX_TOKEN"

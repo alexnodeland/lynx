@@ -13,6 +13,7 @@
 #include "app.h"
 #include "auth.h"
 #include "camera.h"
+#include "ota.h"
 
 namespace lynx {
 
@@ -52,7 +53,7 @@ static void removeWaiter(TaskHandle_t t) {
 // takes frames only while someone is watching
 static void producer(void*) {
   for (;;) {
-    if (streamViewers == 0 || !cameraReady()) {
+    if (streamViewers == 0 || !cameraReady() || otaInProgress()) {
       vTaskDelay(pdMS_TO_TICKS(50));
       continue;
     }

@@ -17,6 +17,10 @@
 - **Several viewers and pushed events:** port 81 is now a small server of its own. One frame producer is shared by up
   to 4 clients (three viewers measured at ~15 fps each), and `GET :81/events` pushes the status on every change.
   Home Assistant listens to it for instant updates and keeps polling as the fallback.
+- **Over-the-air updates with automatic rollback:** `POST /api/update` (image, chip, app-descriptor and SHA-256 checks),
+  a dashboard firmware card, `just ota`, and a Home Assistant update entity that installs GitHub releases.
+  A new image proves itself for 45 s before it's kept; a build that crashes on purpose was rolled back on the board.
+  Releases now also carry `lynx-app-vX.bin` and a `lynx-vX.json` manifest.
 - Fix: the demo sweep ends at the rest pose instead of lens-up.
 
 ## 0.3.0 (2026-10-20)

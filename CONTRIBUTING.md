@@ -65,8 +65,9 @@ Then work through the [bring-up checklist](firmware/lynx/README.md#bring-up-chec
 
 1. Bump the version in `firmware/lynx/src/app.h`, `custom_components/lynx/manifest.json` and
    `web/public/flash/manifest.json`, and add a section to `CHANGELOG.md`.
-2. `just release 0.4.0`: the tag triggers CI, which builds the firmware and attaches
-   `lynx-v0.4.0.bin` to the GitHub release. The site's flasher redeploys from `main`.
+2. `just release 0.4.0`: the tag triggers CI, which builds the firmware and attaches `lynx-v0.4.0.bin`
+   (merged, USB), `lynx-app-v0.4.0.bin` (over the air) and `lynx-v0.4.0.json` (hashes) to the GitHub release.
+   Home Assistant offers it as an update within 6 hours. The site's flasher redeploys from `main`.
 
 ## Reporting
 

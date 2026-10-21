@@ -12,6 +12,7 @@ from homeassistant.const import CONF_HOST
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.lynx.const import CONF_TOKEN, DOMAIN
+from custom_components.lynx.update import RELEASES_URL
 
 HOST = "192.168.1.40"
 TOKEN = "9f3c1e0a7b2d4c6e8f0a1b2c3d4e5f60"
@@ -79,8 +80,10 @@ async def unload_entries_after(hass):
 
 @pytest.fixture(autouse=True)
 def no_pushed_events(aioclient_mock):
-    """By default the device pushes nothing on :81/events, so tests run on polling alone."""
+    """By default the device pushes nothing on :81/events, so tests run on polling alone,
+    and there's no GitHub release yet."""
     aioclient_mock.get(f"{BASE}:81/events", exc=TimeoutError)
+    aioclient_mock.get(RELEASES_URL, status=404)
 
 
 @pytest.fixture

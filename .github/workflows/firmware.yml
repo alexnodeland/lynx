@@ -39,10 +39,24 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
+        # lynx-vX.bin: the merged image, flashed at 0x0 over USB (web flasher, esptool)
+        # lynx-app-vX.bin: the app alone, for over-the-air updates (dashboard, Home Assistant, curl)
+        # lynx-vX.json: version + SHA-256 of both, which Home Assistant checks before it flashes
         run: |
-          cp .pio/build/xiao/lynx.bin "lynx-${GITHUB_REF_NAME}.bin"
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes
-          gh release upload "$GITHUB_REF_NAME" "lynx-${GITHUB_REF_NAME}.bin" --clobber
+          v="${GITHUB_REF_NAME}"
+          cp .pio/build/xiao/lynx.bin "lynx-${v}.bin"
+          cp .pio/build/xiao/firmware.bin "lynx-app-${v}.bin"
+          python3 - "$v" <<'PY'
+          import hashlib, json, sys
+          v = sys.argv[1]
+          h = lambda f: hashlib.sha256(open(f, "rb").read()).hexdigest()
+          json.dump({"version": v.lstrip("v"), "chip": "esp32s3",
+                     "app": {"file": f"lynx-app-{v}.bin", "sha256": h(f"lynx-app-{v}.bin")},
+                     "merged": {"file": f"lynx-{v}.bin", "sha256": h(f"lynx-{v}.bin"), "offset": 0}},
+                    open(f"lynx-{v}.json", "w"), indent=2)
+          PY
+          gh release view "$v" >/dev/null 2>&1 || gh release create "$v" --generate-notes
+          gh release upload "$v" "lynx-${v}.bin" "lynx-app-${v}.bin" "lynx-${v}.json" --clobber
   custom-model:
     # proves the Edge Impulse adapter (src/detect_ei.cpp) still builds against a real export
     runs-on: ubuntu-latest

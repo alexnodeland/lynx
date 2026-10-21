@@ -33,6 +33,7 @@ It runs entirely on your LAN: no cloud, no MQTT broker.
 | `switch.…_detection`, `switch.…_follow` | on-device detection, and follow mode (keeps the nearest face in frame) |
 | `select.…_detect`, `select.…_detection_range` | faces or cat faces; near or far |
 | `select.…_preset`, `switch.…_patrol` | go to a named position; tour them on a loop |
+| `update.…_firmware` | firmware updates from GitHub releases, installed over Wi-Fi with progress; the device rolls back by itself if one fails |
 | `sensor.…_wi_fi_signal`, `sensor.…_last_boot`, `sensor.…_free_memory` | diagnostics |
 
 Plus the actions **`lynx.look`**, **`lynx.save_preset`** and **`lynx.delete_preset`**, which target the camera:
