@@ -16,7 +16,7 @@ html, body { background: #0a0a0c; color: var(--ink); font: 16px/1.55 "Inter Tigh
 body { overflow-x: hidden; -webkit-font-smoothing: antialiased; }
 .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
 
-#scene { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; z-index: 0; }
+#scene { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100lvh; display: block; z-index: 0; }
 
 /* ---------------------------------------------------------------- loader: an iris opening */
 #loader { position: fixed; inset: 0; z-index: 40; display: grid; place-content: center; justify-items: center; gap: 16px;
@@ -49,7 +49,7 @@ body { overflow-x: hidden; -webkit-font-smoothing: antialiased; }
 #vf .spec { position: absolute; right: 34px; bottom: 6px; font-size: 11px; letter-spacing: .12em; color: var(--muted); text-shadow: 0 1px 8px rgba(0,0,0,.9); }
 
 /* callout: leader line from a slab to the point it describes, re-projected every frame */
-#callout { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 11; pointer-events: none; overflow: visible; transition: opacity .4s var(--ease); }
+#callout { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100lvh; z-index: 11; pointer-events: none; overflow: visible; transition: opacity .4s var(--ease); }
 #callout.hide { opacity: 0; }
 #leader { fill: none; stroke: var(--accent); stroke-width: 1.3; stroke-dasharray: 4 5; filter: drop-shadow(0 0 4px rgba(127,214,164,.6));
   animation: march 1.2s linear infinite; }
@@ -181,8 +181,10 @@ body { overflow-x: hidden; -webkit-font-smoothing: antialiased; }
   .aperture, #target, #vf .rec { animation: none; }
 }
 
-/* touch: a flick advances one chapter instead of flinging past several */
+/* touch: native momentum scrolling, no snap (snap fights the fling and stutters).
+   A backdrop blur over a live WebGL canvas re-blurs every frame, which phones can't afford: the slabs
+   are near-opaque there anyway. */
 @media (pointer: coarse) {
-  html { scroll-snap-type: y proximity; }
-  .beat { scroll-snap-align: start; scroll-snap-stop: always; }
+  .slab .face, .key .cap, #steps-rail { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .key .cap { background-color: rgba(14,15,18,.82); }
 }

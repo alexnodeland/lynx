@@ -8,10 +8,8 @@
 //   cta: back to the hero, with the calls to action
 import * as THREE from "three";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { createStage, b2t, REST_TILT } from "./stage.js";
 
-gsap.registerPlugin(ScrollTrigger);
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // ------------------------------------------------------------------ scene (shared with the build guide)
@@ -160,14 +158,14 @@ function updateReadout(livePan, liveTilt) {   // text writes run after the layou
 function updateChrome() {
   railFill.style.transform = `scaleX(${progress})`;
   let cur = 0;
-  const y = (goal * (document.documentElement.scrollHeight - innerHeight) + innerHeight * 0.45) / (document.documentElement.scrollHeight - innerHeight);
+  const H = document.documentElement.scrollHeight - viewH, y = (goal * H + viewH * 0.45) / H;
   beatAt.forEach((t, i) => { if (t <= y) cur = i; });
   railLinks.forEach((a) => a.classList.toggle("on", +a.dataset.to === cur || (cur === 5 && +a.dataset.to === 4)));
   // leader line from the visible slab to its anchor
   const beat = beats[cur], key = beat.dataset.anchor, slab = beat.querySelector(".slab");
   if (!key || !slab || !slab.classList.contains("in") || (introTl && introTl.isActive())) { callout.classList.add("hide"); return; }
   const w = ANCHORS[key].n.localToWorld(tmp.copy(ANCHORS[key].local)).project(camera);
-  const tx = (w.x * 0.5 + 0.5) * innerWidth, ty = (-w.y * 0.5 + 0.5) * innerHeight;
+  const cv = renderer.domElement, tx = (w.x * 0.5 + 0.5) * cv.clientWidth, ty = (-w.y * 0.5 + 0.5) * cv.clientHeight;
   const r = slab.querySelector(".face").getBoundingClientRect();
   const fromRight = slab.classList.contains("left");
   const sx = fromRight ? r.right : r.left, sy = Math.min(Math.max(ty, r.top + 28), r.bottom - 28);
@@ -182,8 +180,11 @@ let tl = buildTimeline();
 // scroll sets a goal; the scene eases toward it every frame, so wheel steps glide instead of jump
 let goal = 0, progress = 0, vel = 0;
 const TOUCH = matchMedia("(pointer: coarse)").matches;
-const MAX_RATE = TOUCH ? 0.16 : 0.3;   // timeline progress per second: caps how fast a fling can drive the scene
-ScrollTrigger.create({ start: 0, end: "max", onUpdate: (st) => (goal = st.progress) });
+const MAX_RATE = 0.3;   // timeline progress per second: caps how fast a fling can drive the scene
+// read the scroll position straight off the page, once per frame in the render loop (no scroll-event work)
+// viewport height held steady on phones, so the address bar sliding away doesn't nudge the scene
+let viewH = innerHeight;
+const readGoal = () => { const H = document.documentElement.scrollHeight - viewH; goal = H > 0 ? Math.min(1, Math.max(0, scrollY / H)) : 0; };
 // The timeline records each tween's start values when it is built, so it must be rebuilt from the
 // rest pose: rewind to 0 first, or the pose at that moment (half exploded, mid-pan) becomes the
 // new "assembled" state. Phones fire resize on returning to the tab (address bar), so debounce.
@@ -197,10 +198,17 @@ function scheduleRebuild() {
     tl.progress(progress);
   }, 150);
 }
+// Phones resize on every scroll as the address bar hides and shows. The canvas is sized to the large
+// viewport (100lvh), so a height-only change needs nothing: resizing the GL buffers and rebuilding the
+// timeline mid-fling is what made touch scrolling stutter.
+let lastW = innerWidth;
 addEventListener("resize", () => {
-  renderer.setSize(innerWidth, innerHeight);
-  composer.setSize(innerWidth, innerHeight);
-  camera.aspect = innerWidth / innerHeight;
+  if (TOUCH && innerWidth === lastW) return;
+  lastW = innerWidth; viewH = innerHeight;
+  const cv = renderer.domElement, w = cv.clientWidth, h = cv.clientHeight;
+  renderer.setSize(w, h, false);
+  composer.setSize(w, h);
+  camera.aspect = w / h;
   camera.updateProjectionMatrix();
   scheduleRebuild();
 });
@@ -213,9 +221,11 @@ document.getElementById("loader").classList.add("done");
 const introTl = REDUCED ? null : intro();
 const clock = new THREE.Clock();
 let lookPan = 0, lookTilt = 0;
+const parallax = new THREE.Vector3();
 
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 1 / 30);
+  readGoal();
   // critically damped spring toward the scroll goal (no overshoot, frame-rate independent)
   const w = 9, x = progress - goal, e = Math.exp(-w * dt), t0 = (vel + w * x) * dt;
   const next = goal + (x + t0) * e, cap = MAX_RATE * dt;
@@ -236,7 +246,7 @@ renderer.setAnimationLoop(() => {
   panArc.material.opacity = tiltArc.material.opacity = state.arcs * 0.8;
   // camera with inertia + a touch of parallax: feels hand-held, like a game camera
   const k = 1 - Math.exp(-dt * 12);
-  smooth.pos.lerp(tmp.copy(cam.pos).add(new THREE.Vector3(mouse.x * 0.006, -mouse.y * 0.004, 0)), k);
+  smooth.pos.lerp(tmp.copy(cam.pos).add(parallax.set(mouse.x * 0.006, -mouse.y * 0.004, 0)), k);
   smooth.target.lerp(cam.target, k);
   smooth.fov += (cam.fov - smooth.fov) * k;
   camera.position.copy(smooth.pos);

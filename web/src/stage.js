@@ -23,8 +23,10 @@ export const REST_TILT = 45;   // at rest the lens leans 45 deg toward the front
 export async function createStage({ canvas, onProgress } = {}) {
   // ------------------------------------------------------------------ renderer + scene
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
-  renderer.setSize(innerWidth, innerHeight);
+  // phones: fewer pixels and no AO/depth-of-field, so every frame lands inside the scroll's frame budget
+  const TOUCH = matchMedia("(pointer: coarse)").matches;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, TOUCH ? 1.25 : 1.5));
+  renderer.setSize(canvas.clientWidth || innerWidth, canvas.clientHeight || innerHeight, false);   // CSS sizes the canvas (100lvh)
   renderer.toneMapping = THREE.AgXToneMapping;
   renderer.toneMappingExposure = 0.82;
   renderer.shadowMap.enabled = true;
@@ -32,7 +34,7 @@ export async function createStage({ canvas, onProgress } = {}) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0b0b0d);
   scene.fog = new THREE.Fog(0x0b0b0d, 0.7, 1.9);
-  const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.005, 5);
+  const camera = new THREE.PerspectiveCamera(30, (canvas.clientWidth || innerWidth) / (canvas.clientHeight || innerHeight), 0.005, 5);
 
   // lights: warm desk lamp (key, shadows), cool window fill, rim
   const key = new THREE.DirectionalLight(0xffd2a0, 2.6);
@@ -202,11 +204,11 @@ export async function createStage({ canvas, onProgress } = {}) {
   ao.configuration.intensity = 2.2;
   ao.configuration.halfRes = true;
   ao.configuration.gammaCorrection = false;        // OutputPass does the colour conversion once, at the end
-  composer.addPass(ao);
+  if (!TOUCH) composer.addPass(ao);
   composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.25, 0.4, 0.92));
   // shallow depth of field like the renders: focus tracks the product every frame
   const bokeh = new BokehPass(scene, camera, { focus: 0.34, aperture: 0.0035, maxblur: 0.006 });
-  composer.addPass(bokeh);
+  if (!TOUCH) composer.addPass(bokeh);
   composer.addPass(new OutputPass());
 
 
