@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- microSD recording verified on the board: timelapse, listing, fetching over REST and MCP, deletion and the path guard. Snapshots on detection are still unseen on hardware.
+
 ## 0.4.1 (2026-10-21)
 
 - **MCP docs for agents:** fuller `instructions`, a `guide` tool and `lynx://guide` resource (the manual),

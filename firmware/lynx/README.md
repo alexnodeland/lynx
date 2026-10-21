@@ -393,7 +393,13 @@ Files go to `/lynx/YYYYMMDD/HHMMSS_kind.jpg`, dated in UTC from NTP. Once the ca
 recordings are deleted until it's back under 80 %. **Recording is off until you turn it on**
 (`POST /api/sd`, MCP `recordings`, or Home Assistant).
 
-*Not yet verified with a card in the slot. The bring-up board had none. The logic is native-tested.*
+**Verified on the board (v0.4.1, 16 GB FAT32 card):** the card mounted, and the timelapse saved one frame
+at once and then one a minute, dated from NTP. Files were listed and fetched over REST and MCP, and deleted
+singly and by day. The path guard refused `/etc/passwd` and `..`. Snapshots on detection are native-tested
+but not yet seen on the board, because nobody was in front of it.
+
+**The card is read at boot.** After inserting one, restart lynx (unplug and replug it, or update its firmware).
+Format it FAT32 with an MBR partition map. A card over 32 GB comes formatted exFAT and must be reformatted.
 
 ## Presets and patrol
 
