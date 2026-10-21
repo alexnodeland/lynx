@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any
 
 import aiohttp
@@ -112,6 +113,35 @@ class LynxClient:
     async def set_patrol(self, **settings: Any) -> dict[str, Any]:
         """{enabled, presets: [names], dwellS}"""
         return await self._json("POST", "/api/patrol", json=settings)
+
+    @property
+    def events_url(self) -> str:
+        host = f"[{self.host}]" if ":" in self.host else self.host
+        return f"http://{host}:{STREAM_PORT}/events"
+
+    async def events(self):
+        """Yield each status the device pushes (server-sent events on :81/events) until the connection drops."""
+        try:
+            async with self._session.get(
+                self.events_url, headers=self.auth_headers, timeout=aiohttp.ClientTimeout(sock_connect=10, sock_read=45)
+            ) as resp:
+                if resp.status == 401:
+                    raise LynxAuthError("token rejected")
+                if resp.status != 200:
+                    raise LynxConnectionError(f"events: HTTP {resp.status}")
+                data = ""
+                async for raw in resp.content:
+                    line = raw.decode(errors="replace").rstrip("\r\n")
+                    if line.startswith("data:"):
+                        data += line[5:].lstrip()
+                    elif line == "" and data:
+                        try:
+                            yield json.loads(data)
+                        except ValueError:
+                            pass
+                        data = ""
+        except (TimeoutError, aiohttp.ClientError) as err:
+            raise LynxConnectionError(f"events: {err}") from err
 
     async def snapshot(self) -> bytes:
         resp = await self._request("GET", "/snapshot.jpg")

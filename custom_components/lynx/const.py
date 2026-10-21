@@ -11,6 +11,7 @@ MODEL: Final = "lynx pan/tilt camera"
 CONF_TOKEN: Final = "token"
 
 SCAN_INTERVAL: Final = timedelta(seconds=10)
+SCAN_INTERVAL_WITH_EVENTS: Final = timedelta(seconds=60)  # pushed events keep entities current
 STREAM_PORT: Final = 81
 
 SERVICE_LOOK: Final = "look"

@@ -132,7 +132,8 @@ Pure logic lives in `lib/`. It has no Arduino includes, builds for the board and
 | `lib/presets/` | named positions, the patrol that tours them, and the arbiter: manual > follow (with a target) > patrol |
 | `lib/netplan/` | when the setup hotspot opens and closes, and the join state: pure rules, unit-tested |
 | `src/net.*` | carries out the netplan: hotspot + captive DNS, station mode, mDNS (with IPv6), BOOT button |
-| `src/web.*` | `esp_http_server`: port 80 (pages, REST, MCP, snapshot), port 81 (stream) |
+| `src/web.*` | `esp_http_server` on port 80: pages, REST, MCP, snapshot |
+| `src/stream.*` | port 81: one frame producer shared by up to 4 clients (MJPEG viewers, `/events` subscribers), a task each |
 | `src/camera.*` | esp32-camera on the XIAO Sense pins |
 | `src/detect.*` | ESP-DL face / cat-face detection in its own task, on a scaled copy of each JPEG |
 | `src/detect_ei.*` | an optional Edge Impulse model (`lib/lynx_model`, from `just model-add`) as the `custom` detector |
@@ -142,8 +143,9 @@ Pure logic lives in `lib/`. It has no Arduino includes, builds for the board and
 | `test/` | Unity tests: `test_motion`, `test_mcp`, `test_auth`, `test_netplan`, `test_follow`, `test_presets` |
 
 The HTTP servers run in their own FreeRTOS tasks, so every touch of the motion
-core goes through a recursive mutex (`MotionLock`). The stream gets its own server
-on port 81, so a viewer can never block a control request. The servos own LEDC
+core goes through a recursive mutex (`MotionLock`). Port 81 is a small server of its own: one task
+takes each camera frame once and shares it, and every viewer or event subscriber gets its own task with a
+send timeout, so a slow client only slows itself and can never block a control request. The servos own LEDC
 timers 0 and 1 (ESP32Servo explicit allocation), and the camera clock uses timer 3,
 channel 7, so they never collide.
 
@@ -251,7 +253,8 @@ image and stream URLs go straight into an `<img>`, VLC or Home Assistant.
 | `POST /api/detect` | `{"enabled":true,"model":"face","range":"far"}` | detection on/off; `face`, `cat` or `custom` (if installed); `near`/`far` (saved) |
 | `POST /api/follow` | `{"enabled":true}` (and `panSign`/`tiltSign`) | follow mode (turns detection on if needed) |
 | `POST /api/detect/image` | a JPEG (`?debug=1` returns what the model saw) | run detection on your own image: testing and tuning |
-| `GET :81/stream` | `?fps=10` optional | MJPEG live video, **one viewer at a time** (a second gets `503`) |
+| `GET :81/stream` | `?fps=10` optional | MJPEG live video: several viewers at once (up to 4 connections on :81, a fifth gets `503`) |
+| `GET :81/events` | | **server-sent events:** the full status, pushed whenever it changes (a move, a detection, a setting), plus a ping every 15 s |
 | `POST /mcp` | JSON-RPC | MCP, below |
 
 ```sh
@@ -379,7 +382,7 @@ None of these can be checked off the board. ✅ = verified at first bring-up (20
 5. ✅ (macOS) **mDNS:** `ping lynx-xxxx.local` resolves from macOS, Windows and Linux (Android may need the IP).
 6. ✅ **Hotspot closes** about 3 minutes after joining, and reopens with BOOT held for 3 s.
 7. **MCP:** `claude mcp add …` as above, then ask the agent to "look left and take a snapshot".
-8. **Stream:** a second viewer gets `503`; the first keeps streaming; snapshots still work.
+8. ✅ **Stream:** three viewers at once got ~15 fps each; a fifth connection gets `503`; `/events` pushed a move and a setting change.
 9. **Orientation:** if the image is upside down, `POST /api/camera {"vflip":true}` (or `hmirror`).
 10. **Web flasher:** flash a blank board from `flash.html` and repeat step 1.
 

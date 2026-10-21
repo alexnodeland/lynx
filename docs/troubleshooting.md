@@ -39,8 +39,8 @@ frames with faint noise. Then check that the lens film is off.
 **The picture is upside down or mirrored.** `POST /api/camera {"vflip": true}` (or `hmirror`), or the
 *Flip image* / *Mirror image* switches in Home Assistant. The setting is saved.
 
-**The stream says 503.** Someone else is already watching: lynx serves one live viewer at a time.
-Snapshots still work. Close the other viewer (a second dashboard tab counts).
+**The stream says 503.** Port 81 is full: 4 connections in all, counting live viewers and `/events`
+subscribers (Home Assistant holds one). Close a viewer. Snapshots on port 80 always work.
 
 ## Detection and follow
 
@@ -72,5 +72,5 @@ then fine-tune with `trim` (see [calibration](../firmware/lynx/README.md#calibra
 **lynx isn't discovered.** Discovery needs firmware 0.3.0 or newer (it advertises `_lynx._tcp` with its
 id), and HA on the same network segment. Otherwise use *Add integration › lynx* with the IP.
 
-**Two dashboards fight over the live view.** That's the one-viewer limit above. Use a picture card
-(snapshots) on the second one.
+**Live views stall with several dashboards open.** That's the 4-connection limit on port 81 (see above).
+Use picture cards (snapshots) for the extra ones.

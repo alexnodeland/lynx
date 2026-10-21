@@ -19,8 +19,7 @@
 
 namespace lynx {
 
-static httpd_handle_t api = nullptr, streamSrv = nullptr;
-static std::atomic<int> streamClients{0};
+static httpd_handle_t api = nullptr;
 static const size_t kMaxBody = 4096;
 
 // ---------- request helpers ----------
@@ -167,7 +166,8 @@ static esp_err_t infoHandler(httpd_req_t* r) {
   e["sweep"] = "POST /api/sweep";
   e["camera"] = "GET|POST /api/camera";
   e["snapshot"] = "GET /snapshot.jpg";
-  e["stream"] = "GET :81/stream";
+  e["stream"] = "GET :81/stream (several viewers)";
+  e["events"] = "GET :81/events (server-sent events: the status, pushed on change)";
   e["detections"] = "GET /api/detections";
   e["detect"] = "POST /api/detect {enabled, model: face|cat}";
   e["follow"] = "POST /api/follow {enabled}";
@@ -434,45 +434,6 @@ static esp_err_t notFound(httpd_req_t* r, httpd_err_code_t) {
   return ESP_OK;
 }
 
-// ---------- stream (port 81) ----------
-
-#define BOUNDARY "lynxframe"
-static esp_err_t streamHandler(httpd_req_t* r) {
-  if (!authorizedReq(r)) return ESP_OK;
-  // one viewer at a time: this server has a single task, so a stream occupies it until the client leaves
-  if (streamClients.fetch_add(1) > 0) {
-    streamClients--;
-    return sendError(r, "503 Service Unavailable", "another client is streaming; use /snapshot.jpg meanwhile");
-  }
-  int fps = atoi(queryValue(query(r), "fps").c_str());
-  uint32_t minGap = fps > 0 ? 1000 / min(fps, 30) : 0;
-  httpd_resp_set_type(r, "multipart/x-mixed-replace;boundary=" BOUNDARY);
-  httpd_resp_set_hdr(r, "Cache-Control", "no-store");
-  httpd_resp_set_hdr(r, "Access-Control-Allow-Origin", "*");
-  esp_err_t e = ESP_OK;
-  char part[96];
-  uint32_t last = 0;
-  while (e == ESP_OK) {
-    if (minGap && millis() - last < minGap) {
-      delay(5);
-      continue;
-    }
-    camera_fb_t* fb = cameraGrab();
-    if (!fb) {
-      delay(20);
-      continue;
-    }
-    last = millis();
-    int n = snprintf(part, sizeof part, "\r\n--" BOUNDARY "\r\nContent-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n",
-                     (unsigned)fb->len);
-    e = httpd_resp_send_chunk(r, part, n);
-    if (e == ESP_OK) e = httpd_resp_send_chunk(r, (const char*)fb->buf, fb->len);
-    cameraRelease(fb);
-  }
-  streamClients--;
-  return e;
-}
-
 // ---------- start ----------
 
 static void route(httpd_handle_t s, const char* uri, httpd_method_t m, esp_err_t (*h)(httpd_req_t*)) {
@@ -521,14 +482,6 @@ void webBegin() {
   } else {
     Serial.println("http server failed to start");
   }
-
-  httpd_config_t sc = HTTPD_DEFAULT_CONFIG();
-  sc.server_port = 81;
-  sc.ctrl_port = 32769;
-  sc.stack_size = 6144;
-  sc.max_open_sockets = 3;
-  sc.lru_purge_enable = true;
-  if (httpd_start(&streamSrv, &sc) == ESP_OK) route(streamSrv, "/stream", HTTP_GET, streamHandler);
 }
 
 }  // namespace lynx

@@ -7,6 +7,7 @@ import copy
 from typing import Any
 
 import pytest
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_HOST
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -63,6 +64,23 @@ STATUS: dict[str, Any] = {
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     yield
+
+
+@pytest.fixture(autouse=True)
+async def unload_entries_after(hass):
+    """Unload every lynx entry when a test ends, which cancels its events listener (as HA does on shutdown)."""
+    yield
+    await hass.async_block_till_done()
+    for e in hass.config_entries.async_entries(DOMAIN):
+        if e.state.recoverable or e.state is ConfigEntryState.LOADED:
+            await hass.config_entries.async_unload(e.entry_id)
+    await hass.async_block_till_done()
+
+
+@pytest.fixture(autouse=True)
+def no_pushed_events(aioclient_mock):
+    """By default the device pushes nothing on :81/events, so tests run on polling alone."""
+    aioclient_mock.get(f"{BASE}:81/events", exc=TimeoutError)
 
 
 @pytest.fixture

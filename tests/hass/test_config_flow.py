@@ -113,6 +113,7 @@ async def test_reconfigure_new_address(hass, entry, aioclient_mock, status):
     new = "http://192.168.1.99"
     aioclient_mock.get(f"{new}/api/info", json=INFO)
     aioclient_mock.get(f"{new}/api/status", json=status)  # the entry reloads against the new address
+    aioclient_mock.get(f"{new}:81/events", exc=TimeoutError)
     r = await entry.start_reconfigure_flow(hass)
     r = await hass.config_entries.flow.async_configure(r["flow_id"], {CONF_HOST: "192.168.1.99"})
     await hass.async_block_till_done()

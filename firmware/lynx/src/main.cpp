@@ -16,6 +16,7 @@
 #include "follow.h"
 #include "presets.h"
 #include "net.h"
+#include "stream.h"
 #include "web.h"
 
 using namespace lynx;
@@ -147,6 +148,7 @@ void cameraJson(JsonObject o) {
 }
 
 bool applyCameraJson(JsonObjectConst in, std::string& error) {
+  eventsPoke();  // /events subscribers hear about it straight away
   CameraSettings c = settings.camera;
   if (!in["framesize"].isNull()) {
     int fs = framesizeFromName(in["framesize"].as<const char*>());
@@ -208,6 +210,7 @@ void detectionsJson(JsonObject o) {
 }
 
 bool applyDetectJson(JsonObjectConst in, std::string& error) {
+  eventsPoke();  // /events subscribers hear about it straight away
   int m = settings.detectModel;
   if (!in["model"].isNull()) {
     m = detectModelFromName(in["model"].as<const char*>());
@@ -236,6 +239,7 @@ bool applyDetectJson(JsonObjectConst in, std::string& error) {
 }
 
 bool applyFollowJson(JsonObjectConst in, std::string& error) {
+  eventsPoke();  // /events subscribers hear about it straight away
   if (!in["panSign"].isNull()) settings.followPanSign = in["panSign"].as<int>() < 0 ? -1 : 1;
   if (!in["tiltSign"].isNull()) settings.followTiltSign = in["tiltSign"].as<int>() < 0 ? -1 : 1;
   if (!in["enabled"].isNull()) {
@@ -285,6 +289,7 @@ static void restartPatrol(uint32_t now) {
 }
 
 bool presetAction(JsonObjectConst in, std::string& error) {
+  eventsPoke();  // /events subscribers hear about it straight away
   const char* action = in["action"] | "";
   const char* name = in["name"] | "";
   uint32_t now = millis();
@@ -333,6 +338,7 @@ bool presetAction(JsonObjectConst in, std::string& error) {
 }
 
 bool applyPatrolJson(JsonObjectConst in, std::string& error) {
+  eventsPoke();  // /events subscribers hear about it straight away
   MotionLock l;
   PatrolSaved ps = patrolSaved;
   if (!in["presets"].isNull()) {
@@ -626,6 +632,7 @@ void setup() {
   detectSet(settings.detect, settings.detectModel, settings.detectRange);
   netBegin();
   webBegin();
+  streamBegin();
   Serial.printf("lynx %s ready as %s (type 'help')\n", kVersion, hostName().c_str());
 }
 

@@ -87,6 +87,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: LynxConfigEntry) -> bool
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # instant updates: the device pushes its status on change (cancelled with the entry)
+    entry.async_create_background_task(hass, coordinator.listen(), f"{DOMAIN} events {entry.title}")
     return True
 
 

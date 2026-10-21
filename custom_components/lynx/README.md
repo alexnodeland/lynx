@@ -80,10 +80,11 @@ actions:
 
 ## Good to know
 
-- **One live viewer at a time.** The device serves a single MJPEG stream. Two dashboards showing the
-  live view at once means one of them waits. Picture cards (stills every ~10 s) never compete.
-  The integration deliberately doesn't hand the stream to HA's `stream`/ffmpeg pipeline, which
-  would hold that one slot permanently.
+- **Instant updates.** The integration listens to the device's `/events` stream, so entities change the moment
+  the head moves or a face appears. Polling continues as a fallback (every 60 s while events flow, 10 s if
+  they stop). That listener uses one of the device's 4 connections on port 81.
+- **Live view.** Up to 3 more viewers (dashboards, VLC) can watch at once. The integration doesn't hand the
+  stream to HA's `stream`/ffmpeg pipeline, which would hold a connection permanently.
 - **Token rotated?** Run `token new` on the serial console and HA asks you for the new token.
 - **New IP address?** Discovery updates it on its own; **Reconfigure** sets it by hand.
 - Polling every 10 s; commands update the state right away from the device's reply.

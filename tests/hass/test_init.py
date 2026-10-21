@@ -148,6 +148,22 @@ async def test_presets_and_patrol(hass, entry, lynx):
     assert posts(lynx, "/api/patrol")[-1][2] == {"enabled": False}
 
 
+async def test_pushed_events_update_entities(hass, entry, aioclient_mock, status):
+    import json as _json
+
+    aioclient_mock.clear_requests()  # replace the default "no events" mock
+    aioclient_mock.get(f"{BASE}/api/info", json=INFO)
+    aioclient_mock.get(f"{BASE}/api/status", json=status)
+    pushed = {**status, "pan": {**status["pan"], "target": 33}}
+    body = f"retry: 3000\n\nevent: status\ndata: {_json.dumps(pushed)}\n\n: ping\n\n"
+    aioclient_mock.get(f"{BASE}:81/events", text=body)
+    await setup(hass, entry)
+    await hass.async_block_till_done()
+    assert hass.states.get("number.lynx_42e0_pan").state == "33.0"
+    events_calls = [c for c in aioclient_mock.mock_calls if str(c[1]).endswith(":81/events")]
+    assert events_calls and events_calls[0][3]["Authorization"] == f"Bearer {TOKEN}"
+
+
 async def test_camera_image(hass, entry, lynx):
     await setup(hass, entry)
     image = await async_get_image(hass, "camera.lynx_42e0")

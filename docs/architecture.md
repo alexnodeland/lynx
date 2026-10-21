@@ -18,7 +18,7 @@ flowchart LR
     FW --> SERVOS
     FW --> CAM
   end
-  HA["Home Assistant<br/>(custom_components/lynx)"] -- "REST :80 + MJPEG :81" --> FW
+  HA["Home Assistant<br/>(custom_components/lynx)"] -- "REST :80 · MJPEG + events :81" --> FW
   AGENT["AI agents<br/>(MCP clients)"] -- "POST /mcp" --> FW
   APPS["scripts, apps, VLC"] -- "REST / MJPEG" --> FW
   PHONE["phone"] -- "setup hotspot<br/>(first boot)" --> FW
@@ -48,21 +48,22 @@ flowchart TB
   end
   DETECT -- "boxes" --> FOLLOW["lib/follow<br/>track moves"]
   FOLLOW -- "MotionLock" --> MOTION
-  subgraph http81["httpd :81 (own task)"]
-    STREAM["MJPEG /stream<br/>one viewer"]
+  subgraph s81[":81 stream server"]
+    PRODUCER["frame producer"] --> STREAM["/stream viewers<br/>+ /events, task each, ≤4"]
   end
   REST -- "MotionLock" --> MOTION
   MCP -- "MotionLock" --> MOTION
   REST --> CAMERA["camera.cpp<br/>LEDC timer 3, PSRAM buffers"]
   MCP --> CAMERA
-  STREAM --> CAMERA
+  PRODUCER --> CAMERA
   DETECT --> CAMERA
 ```
 
 - **Pure logic lives in `lib/`** (motion, MCP, auth, network plan, follow). It has no Arduino includes and
   runs as native unit tests on every push: 58 of them.
 - **The HTTP servers run in their own FreeRTOS tasks**, so they reach the motion core only through a
-  recursive mutex. The stream has its own server, so a viewer can never block a control request.
+  recursive mutex. Port 81 is its own small server: one producer copies each frame once for up to 4
+  clients (viewers and `/events` subscribers), each in its own task, so a viewer can never block a control request.
 - **Requests from the HTTP task that change Wi-Fi** (joining from the setup page) are handed to the
   main loop through atomics, so only one task ever drives the Wi-Fi stack.
 

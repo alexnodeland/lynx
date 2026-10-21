@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-// HTTP: port 80 = pages, REST API, MCP, snapshots; port 81 = MJPEG stream (its own task, so a
-// viewer can never block control).
+// HTTP on port 80: pages, REST API, MCP, snapshots. Port 81 (video + events) is stream.cpp.
 #pragma once
 
 namespace lynx {
