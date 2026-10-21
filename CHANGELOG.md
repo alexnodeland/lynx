@@ -24,6 +24,7 @@
 - **microSD recording:** snapshots on detection (a burst, then one per 30 s), a timelapse, and retention past 90 %.
   Files are named by date from NTP; the API lists, downloads and deletes them (path-checked), there's an MCP
   `recordings` tool and Home Assistant entities. Off by default. Not yet verified with a card in the slot.
+- MCP `snapshot` takes `annotate: true` to draw the current detections on the image.
 - Fix: the demo sweep ends at the rest pose instead of lens-up.
 
 ## 0.3.0 (2026-10-20)

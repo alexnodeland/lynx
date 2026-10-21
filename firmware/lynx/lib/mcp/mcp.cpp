@@ -120,7 +120,11 @@ static void listTools(JsonObject result) {
   schemaNumber(props, "ms", 0, 10000, "Optional move duration in milliseconds; omitted = chosen from distance.");
   addTool(tools, "center", "Center", "Return to the rest pose: pan 0, tilt 45.", false);
   addTool(tools, "sweep", "Sweep", "Run a demo sweep through the full range of motion.", false);
-  addTool(tools, "snapshot", "Snapshot", "Take a JPEG photo with the camera and return it as an image.", true);
+  addTool(tools, "snapshot", "Snapshot",
+          "Take a JPEG photo with the camera and return it as an image. annotate: true draws the current detections "
+          "(green boxes) on it.",
+          true, &props);
+  props["annotate"]["type"] = "boolean";
   addTool(tools, "stream_url", "Stream URL",
           "URLs for the live MJPEG video stream and still snapshots (open in a browser, VLC, ffmpeg or Home Assistant).",
           true);
@@ -232,7 +236,7 @@ static bool callTool(Device& dev, const std::string& name, JsonObjectConst args,
     text(content, "sweeping the full range of motion");
   } else if (name == "snapshot") {
     std::string jpeg, e;
-    if (!dev.snapshot(jpeg, e)) {
+    if (!dev.snapshot(jpeg, e, args["annotate"] | false)) {
       result["isError"] = true;
       text(content, "snapshot failed: " + e);
       return true;

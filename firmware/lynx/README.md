@@ -294,7 +294,7 @@ It speaks both protocol generations:
 | `look` | `pan` −88..88, `tilt` −58..58, `ms` optional | text: where it's moving and how long it takes |
 | `center` | | rest pose |
 | `sweep` | | demo sweep |
-| `snapshot` | | an `image` (base64 JPEG) |
+| `snapshot` | `annotate` (optional) | an `image` (base64 JPEG); with `annotate: true`, the current detections drawn on it as green boxes |
 | `stream_url` | | the MJPEG and snapshot URLs: video doesn't travel over MCP |
 | `set_camera` | `framesize`, `quality`, `vflip`, `hmirror`, `brightness` | confirmation |
 | `detect` | `enabled`, `model` (face/cat), `range` (near/far), all optional | what's in view: count, positions, boxes |

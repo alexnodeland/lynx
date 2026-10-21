@@ -122,7 +122,9 @@ class LynxDevice : public Device {
     MotionLock l;
     motion.startSweep(millis());
   }
-  bool snapshot(std::string& jpeg, std::string& error) override { return cameraSnapshot(jpeg, error); }
+  bool snapshot(std::string& jpeg, std::string& error, bool annotate) override {
+    return annotate ? detectAnnotatedSnapshot(jpeg, error) : cameraSnapshot(jpeg, error);
+  }
   bool setCamera(JsonObjectConst s, std::string& error) override { return applyCameraJson(s, error); }
   std::string snapshotUrl() override { return baseUrl() + "/snapshot.jpg"; }
   std::string streamUrl() override { return baseUrl() + ":81/stream"; }

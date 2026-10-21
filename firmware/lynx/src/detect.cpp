@@ -236,6 +236,58 @@ bool detectImage(const uint8_t* jpeg, size_t len, Detections& out, uint32_t time
   return ok;
 }
 
+bool detectAnnotatedSnapshot(std::string& out, std::string& error) {
+  std::string jpeg;
+  if (!cameraSnapshot(jpeg, error)) return false;
+  size_t w0, h0;
+  if (!jpegSize((const uint8_t*)jpeg.data(), jpeg.size(), w0, h0)) {
+    error = "couldn't read the frame";
+    return false;
+  }
+  int shift = 0;
+  while ((w0 >> shift) > 800 && shift < 3) shift++;
+  int w = w0 >> shift, h = h0 >> shift;
+  uint8_t* px = (uint8_t*)ps_malloc((size_t)w * h * 2);
+  if (!px) {
+    error = "out of memory";
+    return false;
+  }
+  if (!jpg2rgb565((const uint8_t*)jpeg.data(), jpeg.size(), px, (jpg_scale_t)shift)) {
+    free(px);
+    error = "couldn't decode the frame";
+    return false;
+  }
+  uint16_t* p16 = (uint16_t*)px;
+  for (int i = 0; i < w * h; i++) p16[i] = (p16[i] >> 8) | (p16[i] << 8);  // to the camera's byte order (fmt2jpg's)
+  Detections d = detectLatest();
+  bool fresh = detectEnabled() && d.at && millis() - d.at < 2000;
+  const uint8_t hi = 0x07, lo = 0xE0;  // green, RGB565, big-endian
+  int t = max(2, w / 200);
+  for (int i = 0; fresh && i < d.n; i++) {
+    int x0 = d.box[i].x * w, y0 = d.box[i].y * h, x1 = (d.box[i].x + d.box[i].w) * w, y1 = (d.box[i].y + d.box[i].h) * h;
+    x0 = constrain(x0, 0, w - 1); x1 = constrain(x1, 0, w - 1); y0 = constrain(y0, 0, h - 1); y1 = constrain(y1, 0, h - 1);
+    for (int y = y0; y <= y1; y++)
+      for (int x = x0; x <= x1; x++) {
+        bool edge = x - x0 < t || x1 - x < t || y - y0 < t || y1 - y < t;
+        if (!edge) continue;
+        uint8_t* q = px + (y * w + x) * 2;
+        q[0] = hi;
+        q[1] = lo;
+      }
+  }
+  uint8_t* enc = nullptr;
+  size_t encLen = 0;
+  bool ok = fmt2jpg(px, (size_t)w * h * 2, w, h, PIXFORMAT_RGB565, 80, &enc, &encLen);
+  free(px);
+  if (!ok) {
+    error = "couldn't encode the annotated frame";
+    return false;
+  }
+  out.assign((const char*)enc, encLen);
+  free(enc);
+  return true;
+}
+
 void detectDebugWantImage(bool on) { testWantImage = on; }
 void detectDebugTake(uint8_t** jpeg, size_t* len, int* stage1) {
   *jpeg = testImg;

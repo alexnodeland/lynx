@@ -28,7 +28,9 @@ struct FakeDevice : Device {
   }
   void center() override { centers++; }
   void sweep() override { sweeps++; }
-  bool snapshot(std::string& jpeg, std::string& err) override {
+  bool lastAnnotate = false;
+  bool snapshot(std::string& jpeg, std::string& err, bool annotate) override {
+    lastAnnotate = annotate;
     if (!camOk) {
       err = "camera not ready";
       return false;
@@ -257,6 +259,9 @@ static void test_snapshot_returns_image_or_tool_error() {
   TEST_ASSERT_EQUAL_STRING("image", d["result"]["content"][0]["type"]);
   TEST_ASSERT_EQUAL_STRING("image/jpeg", d["result"]["content"][0]["mimeType"]);
   TEST_ASSERT_EQUAL_STRING("/9j/2Q==", d["result"]["content"][0]["data"]);
+  TEST_ASSERT_FALSE(dev.lastAnnotate);
+  call(R"({"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"snapshot","arguments":{"annotate":true}}})");
+  TEST_ASSERT_TRUE(dev.lastAnnotate);
   dev.camOk = false;
   d = parse(call(R"({"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"snapshot"}})"));
   TEST_ASSERT_TRUE(d["result"]["isError"].as<bool>());  // a tool failure, not a protocol error

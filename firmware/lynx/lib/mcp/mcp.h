@@ -37,7 +37,7 @@ class Device {
   virtual uint32_t look(float pan, float tilt, int32_t ms) = 0;  // returns the move's duration
   virtual void center() = 0;
   virtual void sweep() = 0;
-  virtual bool snapshot(std::string& jpeg, std::string& error) = 0;
+  virtual bool snapshot(std::string& jpeg, std::string& error, bool annotate = false) = 0;  // annotate: draw detections
   virtual bool setCamera(JsonObjectConst settings, std::string& error) = 0;
   virtual std::string snapshotUrl() = 0;
   virtual std::string streamUrl() = 0;

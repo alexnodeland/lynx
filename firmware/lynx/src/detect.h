@@ -6,6 +6,8 @@
 #pragma once
 #include <Arduino.h>
 
+#include <string>
+
 namespace lynx {
 
 enum DetectModel { DETECT_FACE = 0, DETECT_CAT = 1, DETECT_CUSTOM = 2 };  // custom: an Edge Impulse model, if installed
@@ -41,6 +43,8 @@ bool detectCustomAvailable();
 const char* detectCustomName();  // the installed Edge Impulse project, "" if none
 int detectModelFromName(const char* name);  // -1 if unknown
 Detections detectLatest();
+// A snapshot with the current detections drawn on it (boxes + labels' colour), as JPEG. Downscaled to <= 800 px wide.
+bool detectAnnotatedSnapshot(std::string& jpeg, std::string& error);
 uint32_t detectLastSeenMs();  // millis() when something was last detected, 0 = never
 
 // Run the current model on a JPEG you supply instead of the next camera frame (testing, tuning).
