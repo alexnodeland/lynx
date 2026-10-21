@@ -15,7 +15,7 @@ from pytest_homeassistant_custom_component.components.diagnostics import get_dia
 
 from custom_components.lynx.const import DOMAIN
 
-from .conftest import BASE, DEV_ID, TOKEN, setup
+from .conftest import BASE, DEV_ID, INFO, TOKEN, setup
 
 
 def posts(mock, path: str) -> list:
@@ -81,6 +81,35 @@ async def test_camera_settings(hass, entry, lynx):
     await hass.services.async_call("switch", "turn_on", {"entity_id": "switch.lynx_42e0_flip_image"}, blocking=True)
     bodies = [c[2] for c in posts(lynx, "/api/camera")]
     assert {"framesize": "SVGA"} in bodies and {"vflip": True} in bodies
+
+
+async def test_detection_entities(hass, entry, lynx):
+    await setup(hass, entry)
+    det = hass.states.get("binary_sensor.lynx_42e0_detected")
+    assert det.state == "on"
+    assert det.attributes["model"] == "face"
+    assert hass.states.get("sensor.lynx_42e0_detected_count").state == "1"
+    assert hass.states.get("switch.lynx_42e0_detection").state == "on"
+    assert hass.states.get("switch.lynx_42e0_follow").state == "off"
+    assert hass.states.get("select.lynx_42e0_detect").state == "face"
+    assert hass.states.get("select.lynx_42e0_detection_range").state == "far"
+    await hass.services.async_call("switch", "turn_on", {"entity_id": "switch.lynx_42e0_follow"}, blocking=True)
+    await hass.services.async_call(
+        "select", "select_option", {"entity_id": "select.lynx_42e0_detect", "option": "cat"}, blocking=True
+    )
+    await hass.services.async_call("switch", "turn_off", {"entity_id": "switch.lynx_42e0_detection"}, blocking=True)
+    assert posts(lynx, "/api/follow")[-1][2] == {"enabled": True}
+    bodies = [c[2] for c in posts(lynx, "/api/detect")]
+    assert {"model": "cat"} in bodies and {"enabled": False} in bodies
+
+
+async def test_detected_unavailable_when_detection_off(hass, entry, aioclient_mock, status):
+    status["detect"]["enabled"] = False
+    aioclient_mock.get(f"{BASE}/api/info", json=INFO)
+    aioclient_mock.get(f"{BASE}/api/status", json=status)
+    await setup(hass, entry)
+    assert hass.states.get("binary_sensor.lynx_42e0_detected").state == "unavailable"
+    assert hass.states.get("sensor.lynx_42e0_detected_count").state == "unknown"
 
 
 async def test_camera_image(hass, entry, lynx):

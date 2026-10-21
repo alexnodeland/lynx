@@ -62,7 +62,7 @@ bool cameraBegin(const CameraSettings& s, String& error) {
   c.pixel_format = PIXFORMAT_JPEG;
   c.frame_size = FRAMESIZE_UXGA;  // size the buffers for the largest mode, then drop to the chosen one
   c.jpeg_quality = s.quality;
-  c.fb_count = 2;
+  c.fb_count = 3;  // stream, snapshots and the detector each hold one at times
   c.fb_location = CAMERA_FB_IN_PSRAM;
   c.grab_mode = CAMERA_GRAB_LATEST;
   esp_err_t err = esp_camera_init(&c);

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from ipaddress import ip_address
 
+import pytest
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
 from homeassistant.data_entry_flow import FlowResultType
@@ -13,6 +14,13 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from custom_components.lynx.const import CONF_TOKEN, DOMAIN
 
 from .conftest import BASE, DEV_ID, HOST, INFO, TOKEN
+
+
+@pytest.fixture
+def expected_lingering_timers() -> bool:
+    """Flows that change an entry's data (reauth, reconfigure, a discovered new IP) make Home Assistant
+    schedule a delayed write of the config-entry store; that timer may outlive the test by design."""
+    return True
 
 
 def zc(props: dict | None = None, host: str = HOST) -> ZeroconfServiceInfo:
@@ -101,12 +109,13 @@ async def test_reauth(hass, entry, lynx):
     assert entry.data[CONF_TOKEN] == "a" * 32
 
 
-async def test_reconfigure_new_address(hass, entry, aioclient_mock):
+async def test_reconfigure_new_address(hass, entry, aioclient_mock, status):
     new = "http://192.168.1.99"
     aioclient_mock.get(f"{new}/api/info", json=INFO)
-    aioclient_mock.get(f"{new}/api/status", json={})
+    aioclient_mock.get(f"{new}/api/status", json=status)  # the entry reloads against the new address
     r = await entry.start_reconfigure_flow(hass)
     r = await hass.config_entries.flow.async_configure(r["flow_id"], {CONF_HOST: "192.168.1.99"})
+    await hass.async_block_till_done()
     assert r["reason"] == "reconfigure_successful"
     assert entry.data[CONF_HOST] == "192.168.1.99"
 

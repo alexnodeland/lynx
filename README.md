@@ -46,6 +46,7 @@ An open-source pan/tilt camera built around the Seeed XIAO ESP32-S3 Sense. It ha
 | Printed parts | 8 (base, lid, battery tray, yoke, pan base, pan cap, servo shroud, light pipe) |
 | Control | on your network: REST API, MCP server for AI agents, MJPEG stream (port 81), dashboard; per-device token; serial console |
 | Setup | first-boot Wi-Fi hotspot `lynx-xxxx` with a captive setup page; `lynx-xxxx.local` via mDNS |
+| Detection | on-device faces or cat faces (ESP-DL), ~4 fps; **follow mode** keeps the nearest face in frame; nothing leaves the device |
 | Rest pose | pan 0°, tilt 45°: the lens leans toward the front (tilt 0° points it straight up) |
 | Battery | optional 150 mAh LiPo keeps the camera up; servos run on USB power only |
 
@@ -141,7 +142,7 @@ npm run dev
 
 ```sh
 just setup   # once: PlatformIO + HA test harness in .venv, web deps, git hooks
-just check   # lint, 39 firmware tests, XIAO build, 20 Home Assistant tests, site build
+just check   # lint, 49 firmware tests, XIAO build, 20 Home Assistant tests, site build
 just         # every other recipe: fw-flash, fw-monitor, web-dev, hass-test, look, snap, mcp-add, release …
 ```
 

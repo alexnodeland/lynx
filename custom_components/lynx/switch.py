@@ -22,9 +22,12 @@ PARALLEL_UPDATES = 1
 @dataclass(frozen=True, kw_only=True)
 class LynxSwitchDescription(SwitchEntityDescription):
     field: str
+    section: str = "camera"  # which part of the status it lives in
 
 
 SWITCHES: tuple[LynxSwitchDescription, ...] = (
+    LynxSwitchDescription(key="detection", translation_key="detection", field="enabled", section="detect"),
+    LynxSwitchDescription(key="follow", translation_key="follow", field="follow", section="detect"),
     LynxSwitchDescription(key="vflip", translation_key="vflip", field="vflip", entity_category=EntityCategory.CONFIG),
     LynxSwitchDescription(
         key="hmirror", translation_key="hmirror", field="hmirror", entity_category=EntityCategory.CONFIG
@@ -47,11 +50,17 @@ class LynxSwitch(LynxEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
-        return self.status.get("camera", {}).get(self.entity_description.field)
+        return self.status.get(self.entity_description.section, {}).get(self.entity_description.field)
 
     async def _set(self, on: bool) -> None:
+        d, client = self.entity_description, self.coordinator.client
         try:
-            await self.coordinator.client.set_camera(**{self.entity_description.field: on})
+            if d.key == "detection":
+                await client.set_detect(enabled=on)
+            elif d.key == "follow":
+                await client.set_follow(on)
+            else:
+                await client.set_camera(**{d.field: on})
         except LynxError as err:
             raise HomeAssistantError(f"lynx rejected {self.entity_description.field}: {err}") from err
         await self.coordinator.async_request_refresh()

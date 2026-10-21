@@ -12,6 +12,7 @@
 #include "app.h"
 #include "auth.h"
 #include "camera.h"
+#include "detect.h"
 #include "mcp.h"
 #include "net.h"
 #include "pages.h"
@@ -106,14 +107,17 @@ class LynxDevice : public Device {
   std::string version() override { return kVersion; }
   void status(JsonObject o) override { statusJson(o); }
   uint32_t look(float pan, float tilt, int32_t ms) override {
+    pauseFollow();
     MotionLock l;
     return motion.look(pan, tilt, ms, millis());
   }
   void center() override {
+    pauseFollow();
     MotionLock l;
     motion.center(millis());
   }
   void sweep() override {
+    pauseFollow(30000);
     MotionLock l;
     motion.startSweep(millis());
   }
@@ -121,6 +125,9 @@ class LynxDevice : public Device {
   bool setCamera(JsonObjectConst s, std::string& error) override { return applyCameraJson(s, error); }
   std::string snapshotUrl() override { return baseUrl() + "/snapshot.jpg"; }
   std::string streamUrl() override { return baseUrl() + ":81/stream"; }
+  void detections(JsonObject o) override { detectionsJson(o); }
+  bool setDetect(JsonObjectConst s, std::string& e) override { return applyDetectJson(s, e); }
+  bool setFollow(JsonObjectConst s, std::string& e) override { return applyFollowJson(s, e); }
 };
 static LynxDevice device;
 
@@ -158,6 +165,9 @@ static esp_err_t infoHandler(httpd_req_t* r) {
   e["camera"] = "GET|POST /api/camera";
   e["snapshot"] = "GET /snapshot.jpg";
   e["stream"] = "GET :81/stream";
+  e["detections"] = "GET /api/detections";
+  e["detect"] = "POST /api/detect {enabled, model: face|cat}";
+  e["follow"] = "POST /api/follow {enabled}";
   e["mcp"] = "POST /mcp";
   d["auth"] = "Authorization: Bearer <token> (or ?token= for snapshot and stream URLs)";
   return sendJson(r, d);
@@ -177,6 +187,7 @@ static esp_err_t positionHandler(httpd_req_t* r) {
   std::string b;
   JsonDocument in;
   if (!body(r, b) || deserializeJson(in, b)) return sendError(r, "400 Bad Request", "expected JSON {pan, tilt, ms?}");
+  pauseFollow();
   {
     MotionLock l;
     float p = in["pan"] | motion.axis(PAN).target();
@@ -212,6 +223,85 @@ static esp_err_t cameraPostHandler(httpd_req_t* r) {
   if (!body(r, b) || deserializeJson(in, b)) return sendError(r, "400 Bad Request", "expected JSON");
   if (!applyCameraJson(in.as<JsonObjectConst>(), err)) return sendError(r, "400 Bad Request", err.c_str());
   return cameraGetHandler(r);
+}
+
+static esp_err_t detectionsHandler(httpd_req_t* r) {
+  if (!authorizedReq(r)) return ESP_OK;
+  JsonDocument d;
+  detectionsJson(d.to<JsonObject>());
+  return sendJson(r, d);
+}
+
+// POST /api/detect/image (a JPEG body): run the current model on it, for testing and tuning
+static esp_err_t detectImageHandler(httpd_req_t* r) {
+  if (!authorizedReq(r)) return ESP_OK;
+  if (!detectEnabled()) return sendError(r, "409 Conflict", "turn detection on first (POST /api/detect)");
+  if (r->content_len == 0 || r->content_len > 400000) return sendError(r, "413 Payload Too Large", "send one JPEG, up to 400 kB");
+  uint8_t* buf = (uint8_t*)ps_malloc(r->content_len);
+  if (!buf) return sendError(r, "503 Service Unavailable", "out of memory");
+  size_t got = 0;
+  while (got < r->content_len) {
+    int n = httpd_req_recv(r, (char*)buf + got, r->content_len - got);
+    if (n == HTTPD_SOCK_ERR_TIMEOUT) continue;
+    if (n <= 0) { free(buf); return ESP_FAIL; }
+    got += n;
+  }
+  Detections d;
+  bool dbg = queryValue(query(r), "debug") == "1";
+  detectDebugWantImage(dbg);
+  bool ok = detectImage(buf, got, d);
+  detectDebugWantImage(false);
+  free(buf);
+  uint8_t* img = nullptr;
+  size_t imgLen = 0;
+  int stage1 = 0;
+  detectDebugTake(&img, &imgLen, &stage1);
+  if (dbg && img) {  // ?debug=1: answer with the frame the model saw; counts in headers
+    char hdr[48];
+    snprintf(hdr, sizeof hdr, "%d", d.n);
+    httpd_resp_set_type(r, "image/jpeg");
+    httpd_resp_set_hdr(r, "X-Lynx-Objects", hdr);
+    char h2[16];
+    snprintf(h2, sizeof h2, "%d", stage1);
+    httpd_resp_set_hdr(r, "X-Lynx-Stage1", h2);
+    esp_err_t e = httpd_resp_send(r, (const char*)img, imgLen);
+    free(img);
+    return e;
+  }
+  free(img);
+  if (!ok) return sendError(r, "422 Unprocessable Entity", "couldn't run detection on that image (not a baseline JPEG?)");
+  JsonDocument out;
+  out["model"] = detectModelName(d.model);
+  out["frame"]["w"] = d.inW;
+  out["frame"]["h"] = d.inH;
+  JsonArray a = out["objects"].to<JsonArray>();
+  for (int i = 0; i < d.n; i++) {
+    JsonObject b = a.add<JsonObject>();
+    b["label"] = detectModelName(d.model);
+    b["score"] = roundf(d.box[i].score * 100) / 100;
+    JsonArray box = b["box"].to<JsonArray>();
+    for (float v : {d.box[i].x, d.box[i].y, d.box[i].w, d.box[i].h}) box.add(roundf(v * 1000) / 1000);
+  }
+  return sendJson(r, out);
+}
+
+// POST /api/detect {enabled, model} and /api/follow {enabled, panSign, tiltSign}
+static esp_err_t detectSetHandler(httpd_req_t* r) {
+  if (!authorizedReq(r)) return ESP_OK;
+  std::string b, err;
+  JsonDocument in;
+  if (!body(r, b) || deserializeJson(in, b)) return sendError(r, "400 Bad Request", "expected JSON {enabled, model}");
+  if (!applyDetectJson(in.as<JsonObjectConst>(), err)) return sendError(r, "400 Bad Request", err.c_str());
+  return detectionsHandler(r);
+}
+
+static esp_err_t followSetHandler(httpd_req_t* r) {
+  if (!authorizedReq(r)) return ESP_OK;
+  std::string b, err;
+  JsonDocument in;
+  if (!body(r, b) || deserializeJson(in, b)) return sendError(r, "400 Bad Request", "expected JSON {enabled}");
+  if (!applyFollowJson(in.as<JsonObjectConst>(), err)) return sendError(r, "400 Bad Request", err.c_str());
+  return detectionsHandler(r);
 }
 
 static esp_err_t snapshotHandler(httpd_req_t* r) {
@@ -385,6 +475,10 @@ void webBegin() {
     route(api, "/api/camera", HTTP_GET, cameraGetHandler);
     route(api, "/api/camera", HTTP_POST, cameraPostHandler);
     route(api, "/snapshot.jpg", HTTP_GET, snapshotHandler);
+    route(api, "/api/detections", HTTP_GET, detectionsHandler);
+    route(api, "/api/detect", HTTP_POST, detectSetHandler);
+    route(api, "/api/detect/image", HTTP_POST, detectImageHandler);
+    route(api, "/api/follow", HTTP_POST, followSetHandler);
     route(api, "/api/snapshot", HTTP_GET, snapshotHandler);
     route(api, "/mcp", HTTP_POST, mcpHandler);
     route(api, "/mcp", HTTP_GET, mcpNoStream);

@@ -98,6 +98,13 @@ class LynxClient:
     async def set_camera(self, **settings: Any) -> dict[str, Any]:
         return await self._json("POST", "/api/camera", json=settings)
 
+    async def set_detect(self, **settings: Any) -> dict[str, Any]:
+        """{enabled, model: face|cat, range: near|far}"""
+        return await self._json("POST", "/api/detect", json=settings)
+
+    async def set_follow(self, enabled: bool) -> dict[str, Any]:
+        return await self._json("POST", "/api/follow", json={"enabled": enabled})
+
     async def snapshot(self) -> bytes:
         resp = await self._request("GET", "/snapshot.jpg")
         return await resp.read()

@@ -11,6 +11,7 @@ ESP32-S3 Sense. One image runs the whole product:
 
 - **Servos:** eased pan/tilt motion with soft limits, resting at tilt 45° (lens leaning toward the front).
 - **Camera:** JPEG snapshots and an MJPEG live stream.
+- **On-device detection:** faces or cat faces, with boxes. **Follow mode** turns the head to keep the nearest face in frame.
 - **Control layer on your network:** a REST API, an **MCP server** for AI agents, and a small dashboard.
 - **Setup:** a first-boot Wi-Fi hotspot with a captive setup page.
 
@@ -23,7 +24,7 @@ Every API call needs a per-device token.
 > These are verified: boot, camera and PSRAM, the captive setup page popping up on a phone, the join,
 > mDNS from macOS, the hotspot closing, REST, MCP (both protocol generations, the Origin guard,
 > token checks, snapshot images) and the MJPEG stream. Still open: servos under load, brownout,
-> `claude mcp add` end to end, and the web flasher. 39 native tests (motion, MCP, auth, network plan) run in CI.
+> `claude mcp add` end to end, and the web flasher. 49 native tests (motion, MCP, auth, network plan, follow) run in CI.
 
 ## How it fits together
 
@@ -127,14 +128,16 @@ Pure logic lives in `lib/`. It has no Arduino includes, builds for the board and
 | `lib/mcp/` | stateless MCP server (tools only) over a `Device` interface |
 | `lib/auth/` | token generation and constant-time check, Bearer / `?token=` parsing, Origin guard |
 | `src/main.cpp` | servo PWM, serial console, status JSON, the motion lock |
+| `lib/follow/` | follow mode: detection → pan/tilt corrections (deadband, step cap, signs, hold then return to rest) |
 | `lib/netplan/` | when the setup hotspot opens and closes, and the join state: pure rules, unit-tested |
 | `src/net.*` | carries out the netplan: hotspot + captive DNS, station mode, mDNS (with IPv6), BOOT button |
 | `src/web.*` | `esp_http_server`: port 80 (pages, REST, MCP, snapshot), port 81 (stream) |
 | `src/camera.*` | esp32-camera on the XIAO Sense pins |
+| `src/detect.*` | ESP-DL face / cat-face detection in its own task, on a scaled copy of each JPEG |
 | `src/pages.h` | setup page, dashboard, shared CSS (no external assets) |
 | `src/settings.*` | NVS (Preferences, namespace `lynx`): calibration, Wi-Fi, token, camera |
 | `tools/merge_bin.py` | post-build: `lynx.bin`, one image to flash at 0x0 (used by the web flasher) |
-| `test/` | Unity tests: `test_motion`, `test_mcp`, `test_auth`, `test_netplan` |
+| `test/` | Unity tests: `test_motion`, `test_mcp`, `test_auth`, `test_netplan`, `test_follow` |
 
 The HTTP servers run in their own FreeRTOS tasks, so every touch of the motion
 core goes through a recursive mutex (`MotionLock`). The stream gets its own server
@@ -212,6 +215,9 @@ Settings changes take effect at once but are lost on reset until `save`.
 | `token` | print the API token |
 | `token new` | mint a new token (the old one stops working at once) |
 | `info` | name, address, version, camera state |
+| `detect [off\|face\|cat]` | detection on with that model, or off; no argument prints what it sees |
+| `follow [on\|off]` | follow mode |
+| `follow signs <pan> <tilt>` | ±1 each: flip if follow turns the wrong way for how the board sits |
 | `save` | persist calibration/limits/speed/idle |
 | `status` | JSON status |
 | `help` | list commands |
@@ -234,6 +240,10 @@ image and stream URLs go straight into an `<img>`, VLC or Home Assistant.
 | `GET /api/camera` | | camera settings |
 | `POST /api/camera` | `{"framesize":"SVGA","quality":10,"vflip":false,"hmirror":false,"brightness":0}` | change any of them (saved) |
 | `GET /snapshot.jpg` | | one JPEG frame |
+| `GET /api/detections` | | the latest detections: boxes `[x, y, w, h]` normalised 0..1, scores, fps |
+| `POST /api/detect` | `{"enabled":true,"model":"face","range":"far"}` | detection on/off, `face`/`cat`, `near`/`far` (saved) |
+| `POST /api/follow` | `{"enabled":true}` (and `panSign`/`tiltSign`) | follow mode (turns detection on if needed) |
+| `POST /api/detect/image` | a JPEG (`?debug=1` returns what the model saw) | run detection on your own image: testing and tuning |
 | `GET :81/stream` | `?fps=10` optional | MJPEG live video, **one viewer at a time** (a second gets `503`) |
 | `POST /mcp` | JSON-RPC | MCP, below |
 
@@ -268,6 +278,8 @@ It speaks both protocol generations:
 | `snapshot` | | an `image` (base64 JPEG) |
 | `stream_url` | | the MJPEG and snapshot URLs: video doesn't travel over MCP |
 | `set_camera` | `framesize`, `quality`, `vflip`, `hmirror`, `brightness` | confirmation |
+| `detect` | `enabled`, `model` (face/cat), `range` (near/far), all optional | what's in view: count, positions, boxes |
+| `follow` | `enabled` | follow the nearest face on/off |
 
 ```sh
 claude mcp add --transport http lynx http://lynx-1a2b.local/mcp --header "Authorization: Bearer $TOKEN"
@@ -279,6 +291,11 @@ The dashboard prints both with your token filled in.
 
 ### Lessons from bring-up
 
+- **ESP-DL found nothing at first.** `jpg2rgb565` writes little-endian pixels, while ESP-DL (like the camera,
+  and like `fmt2jpg`) expects the camera's own byte order. Fixed with a byte swap. Even then a
+  room-sized face was too small for the stock first-stage scale, so `range: far` gives it a bigger input.
+  Both were found with `/api/detect/image?debug=1` and known test images, and that debug path stays in.
+
 - **mDNS stalled for 5 s on macOS/iOS.** They ask for an IPv6 address first, and a v4-only ESP32 never
   answers. The firmware now enables an IPv6 link-local address on the station, and lookups take ~5 ms.
 - **The setup hotspot stayed open after joining.** The open/close rules moved into `lib/netplan` with
@@ -287,6 +304,29 @@ The dashboard prints both with your token filled in.
   Hardware confirmed the close.
 - A first boot used to log one `NOT_FOUND` line per missing setting. Reads now check the key first.
 - Every frame black = a dark room, not a fault: the sensor's auto-exposure is fine once there's light.
+
+## Detection and follow
+
+lynx runs **ESP-DL** on the board itself. That's Espressif's model library, which ships with this toolchain.
+It detects **human faces** (two stages, MSR01 then MNP01) or **cat faces** (MN03). It works on a 320×240
+copy of each frame, so the stream and snapshots don't slow down: they held 20 fps with detection on at bring-up.
+It runs at about 3.6 fps with `range: far` and about 4.1 fps with `near`.
+
+- **Detection, not recognition.** It finds *a* face; it doesn't know whose. Nothing leaves the device
+  unless you ask for detections over the API.
+- **Range.** `near` finds faces at least ~30 % of the frame wide (arm's length). `far` (the default)
+  goes down to ~12 %, across a room, at a slightly lower frame rate.
+- **Follow** keeps the biggest (nearest) face centred. It makes small, no-overshoot "track" moves at the
+  detector's rate, ignores a face that's already close to centre, holds 6 s where it last saw one, then
+  glides back to rest. Any manual move (API, MCP, serial, dashboard) pauses follow for 5 s. If it turns
+  the wrong way for how your board sits, `follow signs -1 1` (or `1 -1`) on the serial console.
+  Flip and mirror settings are already accounted for.
+- **Try it without a face in front of the camera:**
+  `curl -X POST -H "Authorization: Bearer $TOKEN" --data-binary @photo.jpg http://lynx-xxxx.local/api/detect/image`.
+  Add `?debug=1` to get back the image the model actually saw.
+
+**Next: custom classes.** The plan is to collect images with lynx itself, train a small detector in
+Edge Impulse, and build it into the firmware as a third model. A whole-body *person* model is the first one planned.
 
 ## Home Assistant
 

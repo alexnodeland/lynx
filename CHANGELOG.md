@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **On-device detection:** faces or cat faces (ESP-DL), with `near`/`far` range. It runs at ~4 fps on a scaled copy
+  of each frame, so the stream keeps its 20 fps. Exposed on REST (`/api/detections`, `/api/detect`), MCP (`detect`),
+  Home Assistant (occupancy and count sensors, detection switch, model and range selects), and the dashboard (live boxes).
+- **Follow mode:** keeps the nearest face centred, using no-overshoot track moves. It holds, then returns to rest.
+  Manual moves pause it. `lib/follow` has native tests, including a closed loop.
+- `/api/detect/image` runs detection on an uploaded JPEG (`?debug=1` returns the model's input).
+- Fix: the demo sweep ends at the rest pose instead of lens-up.
+
 ## 0.3.0 (2026-10-20)
 
 First public release.

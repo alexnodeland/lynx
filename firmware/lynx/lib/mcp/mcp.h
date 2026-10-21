@@ -41,6 +41,10 @@ class Device {
   virtual bool setCamera(JsonObjectConst settings, std::string& error) = 0;
   virtual std::string snapshotUrl() = 0;
   virtual std::string streamUrl() = 0;
+  // detection + follow: the latest boxes, and switching them
+  virtual void detections(JsonObject out) = 0;
+  virtual bool setDetect(JsonObjectConst settings, std::string& error) = 0;  // {enabled, model}
+  virtual bool setFollow(JsonObjectConst settings, std::string& error) = 0;  // {enabled}
 };
 
 constexpr const char* kModernVersion = "2026-07-28";

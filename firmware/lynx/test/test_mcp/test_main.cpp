@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 #include <unity.h>
 
+#include <cstring>
+
 #include "mcp.h"
 
 using namespace lynx;
@@ -43,6 +45,36 @@ struct FakeDevice : Device {
   }
   std::string snapshotUrl() override { return "http://lynx-test.local/snapshot.jpg"; }
   std::string streamUrl() override { return "http://lynx-test.local:81/stream"; }
+  bool detectOn = false, followOn = false;
+  std::string model = "face";
+  void detections(JsonObject o) override {
+    o["enabled"] = detectOn;
+    o["model"] = model;
+    JsonArray a = o["objects"].to<JsonArray>();
+    if (!detectOn) return;
+    JsonObject b = a.add<JsonObject>();
+    b["label"] = model;
+    b["score"] = 0.93;
+    JsonArray box = b["box"].to<JsonArray>();
+    for (float v : {0.7f, 0.2f, 0.2f, 0.25f}) box.add(v);
+  }
+  bool setDetect(JsonObjectConst s, std::string& err) override {
+    if (!s["model"].isNull()) {
+      std::string m = s["model"].as<std::string>();
+      if (m != "face" && m != "cat") {
+        err = "model must be face or cat";
+        return false;
+      }
+      model = m;
+    }
+    if (!s["enabled"].isNull()) detectOn = s["enabled"].as<bool>();
+    return true;
+  }
+  bool setFollow(JsonObjectConst s, std::string&) override {
+    followOn = s["enabled"].as<bool>();
+    if (followOn) detectOn = true;
+    return true;
+  }
 };
 
 void setUp() {}
@@ -156,9 +188,9 @@ static void test_bad_json_and_batch() {
 static void test_tools_list_names() {
   auto d = parse(call(R"({"jsonrpc":"2.0","id":5,"method":"tools/list"})", "2025-11-25"));
   JsonArray t = d["result"]["tools"];
-  const char* want[] = {"status", "look", "center", "sweep", "snapshot", "stream_url", "set_camera"};
-  TEST_ASSERT_EQUAL(7, t.size());
-  for (int i = 0; i < 7; i++) {
+  const char* want[] = {"status", "look", "center", "sweep", "snapshot", "stream_url", "set_camera", "detect", "follow"};
+  TEST_ASSERT_EQUAL(9, t.size());
+  for (int i = 0; i < 9; i++) {
     TEST_ASSERT_EQUAL_STRING(want[i], t[i]["name"]);
     TEST_ASSERT_EQUAL_STRING("object", t[i]["inputSchema"]["type"]);
   }
@@ -213,6 +245,26 @@ static void test_stream_url_and_camera() {
   TEST_ASSERT_EQUAL(-32602, parse(r)["error"]["code"].as<int>());
 }
 
+static void test_detect_and_follow() {
+  auto d = parse(call(R"({"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"detect"}})"));
+  TEST_ASSERT_FALSE(d["result"]["structuredContent"]["enabled"].as<bool>());
+  TEST_ASSERT_NOT_NULL(strstr(d["result"]["content"][0]["text"].as<const char*>(), "detection is off"));
+  d = parse(call(R"({"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"detect","arguments":{"enabled":true,"model":"face"}}})"));
+  TEST_ASSERT_TRUE(dev.detectOn);
+  TEST_ASSERT_EQUAL(1, d["result"]["structuredContent"]["objects"].size());
+  const char* txt = d["result"]["content"][0]["text"];
+  TEST_ASSERT_NOT_NULL(strstr(txt, "1 face in view"));
+  TEST_ASSERT_NOT_NULL(strstr(txt, "right"));  // centre x 0.8
+  auto r = call(R"({"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"detect","arguments":{"model":"dog"}}})");
+  TEST_ASSERT_EQUAL(-32602, parse(r)["error"]["code"].as<int>());
+  r = call(R"({"jsonrpc":"2.0","id":23,"method":"tools/call","params":{"name":"follow","arguments":{}}})");
+  TEST_ASSERT_EQUAL(-32602, parse(r)["error"]["code"].as<int>());
+  call(R"({"jsonrpc":"2.0","id":24,"method":"tools/call","params":{"name":"follow","arguments":{"enabled":true}}})");
+  TEST_ASSERT_TRUE(dev.followOn);
+  dev.detectOn = false;
+  dev.followOn = false;
+}
+
 static void test_base64_padding() {
   TEST_ASSERT_EQUAL_STRING("", base64((const uint8_t*)"", 0).c_str());
   TEST_ASSERT_EQUAL_STRING("Zg==", base64((const uint8_t*)"f", 1).c_str());
@@ -233,6 +285,7 @@ int main() {
   RUN_TEST(test_look_center_sweep);
   RUN_TEST(test_snapshot_returns_image_or_tool_error);
   RUN_TEST(test_stream_url_and_camera);
+  RUN_TEST(test_detect_and_follow);
   RUN_TEST(test_base64_padding);
   return UNITY_END();
 }

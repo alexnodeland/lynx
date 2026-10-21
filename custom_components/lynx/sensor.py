@@ -41,6 +41,12 @@ SENSORS: tuple[LynxSensorDescription, ...] = (
         value=lambda s: s["network"]["rssi"] or None,
     ),
     LynxSensorDescription(
+        key="detected_count",
+        translation_key="detected_count",
+        state_class=SensorStateClass.MEASUREMENT,
+        value=lambda s: s["detect"]["count"] if s["detect"]["enabled"] else None,
+    ),
+    LynxSensorDescription(
         key="free_heap",
         translation_key="free_heap",
         device_class=SensorDeviceClass.DATA_SIZE,

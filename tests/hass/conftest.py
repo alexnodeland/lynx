@@ -41,6 +41,16 @@ STATUS: dict[str, Any] = {
         "rssi": -48,
         "setupHotspot": False,
     },
+    "detect": {
+        "enabled": True,
+        "model": "face",
+        "range": "far",
+        "count": 1,
+        "present": True,
+        "fps": 3.6,
+        "follow": False,
+        "tracking": False,
+    },
     "version": "0.3.0",
     "uptimeMs": 600000,
     "freeHeap": 224000,
@@ -67,6 +77,8 @@ def lynx(aioclient_mock, status):
     aioclient_mock.post(f"{BASE}/api/center", json=status)
     aioclient_mock.post(f"{BASE}/api/sweep", json=status)
     aioclient_mock.post(f"{BASE}/api/camera", json=status["camera"])
+    aioclient_mock.post(f"{BASE}/api/detect", json={"enabled": True})
+    aioclient_mock.post(f"{BASE}/api/follow", json={"enabled": True})
     aioclient_mock.get(f"{BASE}/snapshot.jpg", content=b"\xff\xd8\xff\xd9")
     return aioclient_mock
 

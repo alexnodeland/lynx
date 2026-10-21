@@ -20,7 +20,38 @@ PARALLEL_UPDATES = 1
 async def async_setup_entry(
     hass: HomeAssistant, entry: LynxConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
-    async_add_entities([LynxResolution(entry.runtime_data)])
+    c = entry.runtime_data
+    async_add_entities(
+        [
+            LynxResolution(c),
+            LynxDetectSelect(c, "detect_model", "model", ["face", "cat"]),
+            LynxDetectSelect(c, "detect_range", "range", ["near", "far"]),
+        ]
+    )
+
+
+class LynxDetectSelect(LynxEntity, SelectEntity):
+    """What the on-device detector looks for (face, cat), and how far away (near, far)."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator: LynxCoordinator, key: str, field: str, options: list[str]) -> None:
+        super().__init__(coordinator, key)
+        self._attr_translation_key = key
+        self._attr_options = options
+        self._field = field
+
+    @property
+    def current_option(self) -> str | None:
+        v = self.status.get("detect", {}).get(self._field)
+        return v if v in self.options else None
+
+    async def async_select_option(self, option: str) -> None:
+        try:
+            await self.coordinator.client.set_detect(**{self._field: option})
+        except LynxError as err:
+            raise HomeAssistantError(f"lynx rejected {self._field}: {err}") from err
+        await self.coordinator.async_request_refresh()
 
 
 class LynxResolution(LynxEntity, SelectEntity):

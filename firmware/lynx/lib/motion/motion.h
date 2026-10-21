@@ -38,6 +38,12 @@ float glance(float t, float overshoot, float peak);
 
 // Ease-in-out cubic, t in [0,1].
 float easeInOutCubic(float t);
+// Ease-out cubic, t in [0,1]: leaves at full speed, settles gently. Chains smoothly when re-targeted.
+float easeOutCubic(float t);
+
+// Glance: a head turn, a little past the target and back. Track: no overshoot, ease-out, for
+// following something (re-targeted several times a second; an overshoot there would oscillate).
+enum class MoveStyle { Glance, Track };
 
 float clampf(float v, float lo, float hi);
 
@@ -50,7 +56,7 @@ class AxisMotion {
   // Start an eased move. requestedMs <= 0 means "pick from distance".
   // Returns the duration actually used (may be longer than requested to
   // respect the speed limit). Target is clamped to soft limits.
-  uint32_t moveTo(float deg, int32_t requestedMs, uint32_t nowMs);
+  uint32_t moveTo(float deg, int32_t requestedMs, uint32_t nowMs, MoveStyle style = MoveStyle::Glance);
   void update(uint32_t nowMs);
 
   float position() const { return position_; }
@@ -65,7 +71,8 @@ class AxisMotion {
   float degToUs(float deg) const;
 
   // Duration the core would pick for a move of `distDeg` (exposed for tests).
-  uint32_t durationFor(float distDeg, int32_t requestedMs) const;
+  uint32_t durationFor(float distDeg, int32_t requestedMs, MoveStyle style = MoveStyle::Glance) const;
+  MoveStyle style() const { return style_; }
 
  private:
   AxisCal cal_{};
@@ -73,6 +80,7 @@ class AxisMotion {
   float position_ = 0, start_ = 0, target_ = 0, overshootDeg_ = 0;
   uint32_t t0_ = 0, duration_ = 0, restSince_ = 0;
   bool moving_ = false, attached_ = false;
+  MoveStyle style_ = MoveStyle::Glance;
 };
 
 // Both axes plus a demo sweep sequencer.
@@ -80,6 +88,8 @@ class Motion {
  public:
   void begin(const AxisCal& pan, const AxisCal& tilt, const MotionConfig& cfg, uint32_t nowMs);
   uint32_t look(float pan, float tilt, int32_t ms, uint32_t nowMs);  // cancels sweep
+  // Like look, but a Track move (no overshoot): for follow mode. Cancels sweep.
+  uint32_t track(float pan, float tilt, int32_t ms, uint32_t nowMs);
   // Rest pose: pan centred, lens leaning 45 deg toward the front (tilt 0 = lens straight up).
   // Positive tilt must tip the lens forward; if your servo turns the other way, set the tilt invert flag.
   static constexpr float kRestTiltDeg = 45.0f;

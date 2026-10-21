@@ -30,6 +30,7 @@ button:active{transform:translateY(1px)}.row{display:flex;gap:10px;flex-wrap:wra
 .view{position:relative;aspect-ratio:4/3;background:#000;border-radius:12px;overflow:hidden;margin-bottom:14px}
 .view img{width:100%;height:100%;object-fit:contain;display:block}.view .msg{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim)}.view .msg.hide{display:none}
 .copy{float:right;padding:4px 10px;font-size:12px}
+.view canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 )CSS";
 
 static const char kSetupHtml[] = R"HTML(<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -95,11 +96,17 @@ static const char kDashboardHtml[] = R"HTML(<!doctype html><html lang="en"><head
 </section>
 <div id="app" class="hide">
 <section class="card">
-  <div class="view"><img id="live" alt="live view"><div class="msg" id="vmsg">connecting to the stream…</div></div>
+  <div class="view"><img id="live" alt="live view"><canvas id="boxes"></canvas><div class="msg" id="vmsg">connecting to the stream…</div></div>
   <label>Pan <span id="pv" class="mono"></span></label><input id="pan" type="range" min="-88" max="88" step="1">
   <label>Tilt <span id="tv" class="mono"></span></label><input id="tilt" type="range" min="-58" max="58" step="1">
   <div class="row" style="margin-top:14px"><button id="center">Rest pose</button><button id="sweep">Sweep</button>
   <a class="btn" id="snap" target="_blank">Snapshot</a><button id="logout" style="margin-left:auto">Forget token</button></div>
+</section>
+<section class="card">
+  <h2>Detection <span class="mono" id="dsum" style="color:var(--dim);font-weight:400"></span></h2>
+  <p>On-device: the board finds faces (or cat faces) itself. Nothing is identified or sent anywhere.</p>
+  <div class="row"><select id="dmodel" style="width:auto"><option value="off">Off</option><option value="face">Faces</option><option value="cat">Cat faces</option></select>
+  <label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="follow" style="width:auto"> Follow the nearest face</label></div>
 </section>
 <section class="card">
   <h2>Connect an AI agent (MCP)</h2>
@@ -131,13 +138,25 @@ function fill(){
   const img=$('live'); const seen=setInterval(()=>{ if(img.naturalWidth){ $('vmsg').classList.add('hide'); } },300);  // MJPEG: onload is unreliable, watch for the first frame
   img.onerror=()=>{$('vmsg').textContent='stream busy or unavailable (one viewer at a time) — retrying…';$('vmsg').classList.remove('hide');setTimeout(()=>img.src=stream+'&r='+Date.now(),3000)};
   img.src=stream }
-function show(s){ $('gate').classList.add('hide'); $('app').classList.remove('hide');
+let dTimer=0;
+function drawBoxes(d){ const c=$('boxes'), img=$('live'), r=c.getBoundingClientRect(); c.width=r.width*devicePixelRatio; c.height=r.height*devicePixelRatio;
+  const x=c.getContext('2d'); x.clearRect(0,0,c.width,c.height); if(!d||!img.naturalWidth) return;
+  const k=Math.min(c.width/img.naturalWidth,c.height/img.naturalHeight), iw=img.naturalWidth*k, ih=img.naturalHeight*k, ox=(c.width-iw)/2, oy=(c.height-ih)/2;
+  x.lineWidth=2*devicePixelRatio; x.strokeStyle='#7fd6a4'; x.fillStyle='#7fd6a4'; x.font=`${11*devicePixelRatio}px ui-monospace,monospace`;
+  for(const o of d.objects||[]){ const [bx,by,bw,bh]=o.box; x.strokeRect(ox+bx*iw,oy+by*ih,bw*iw,bh*ih); x.fillText(`${o.label} ${Math.round(o.score*100)}%`,ox+bx*iw,oy+by*ih-4*devicePixelRatio) } }
+async function pollDetect(){ clearTimeout(dTimer); try{ const d=await (await api('/api/detections')).json();
+  $('dmodel').value=d.enabled?d.model:'off'; $('follow').checked=!!d.follow;
+  $('dsum').textContent=d.enabled?`· ${(d.objects||[]).length} in view · ${d.fps.toFixed(1)} fps`:''; drawBoxes(d.enabled?d:null);
+  dTimer=setTimeout(pollDetect,d.enabled?300:3000) }catch(e){ dTimer=setTimeout(pollDetect,3000) } }
+function show(s){ $('gate').classList.add('hide'); $('app').classList.remove('hide'); pollDetect();
   $('pan').value=Math.round(s.pan.target); $('tilt').value=Math.round(s.tilt.target); lbl(); fill() }
 function lbl(){ $('pv').textContent=$('pan').value+'°'; $('tv').textContent=$('tilt').value+'°' }
 let tmr=0; function send(){ lbl(); clearTimeout(tmr); tmr=setTimeout(()=>api('/api/position',{method:'POST',body:JSON.stringify({pan:+$('pan').value,tilt:+$('tilt').value})}),60) }
 $('pan').oninput=$('tilt').oninput=send;
 $('center').onclick=async()=>{const s=await (await api('/api/center',{method:'POST'})).json(); $('pan').value=Math.round(s.pan.target); $('tilt').value=Math.round(s.tilt.target); lbl()};
 $('sweep').onclick=()=>api('/api/sweep',{method:'POST'});
+$('dmodel').onchange=async()=>{ const v=$('dmodel').value; await api('/api/detect',{method:'POST',body:JSON.stringify(v==='off'?{enabled:false}:{enabled:true,model:v})}); pollDetect() };
+$('follow').onchange=async()=>{ await api('/api/follow',{method:'POST',body:JSON.stringify({enabled:$('follow').checked})}); pollDetect() };
 $('save').onclick=async()=>{ tok=$('t').value.trim(); const s=await check();
   if(!s){ $('err').textContent='That token was not accepted.'; return }
   try{localStorage.setItem('lynx-token',tok)}catch(e){} show(s) };

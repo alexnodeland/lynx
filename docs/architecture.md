@@ -43,6 +43,11 @@ flowchart TB
     MCP["lib/mcp<br/>stateless MCP"]
     AUTH["lib/auth<br/>token · Origin"]
   end
+  subgraph det["detector (own task, core 1, low priority)"]
+    DETECT["detect.cpp<br/>ESP-DL face / cat face"]
+  end
+  DETECT -- "boxes" --> FOLLOW["lib/follow<br/>track moves"]
+  FOLLOW -- "MotionLock" --> MOTION
   subgraph http81["httpd :81 (own task)"]
     STREAM["MJPEG /stream<br/>one viewer"]
   end
@@ -51,10 +56,11 @@ flowchart TB
   REST --> CAMERA["camera.cpp<br/>LEDC timer 3, PSRAM buffers"]
   MCP --> CAMERA
   STREAM --> CAMERA
+  DETECT --> CAMERA
 ```
 
-- **Pure logic lives in `lib/`** (motion, MCP, auth, network plan). It has no Arduino includes and
-  runs as native unit tests on every push: 39 of them.
+- **Pure logic lives in `lib/`** (motion, MCP, auth, network plan, follow). It has no Arduino includes and
+  runs as native unit tests on every push: 49 of them.
 - **The HTTP servers run in their own FreeRTOS tasks**, so they reach the motion core only through a
   recursive mutex. The stream has its own server, so a viewer can never block a control request.
 - **Requests from the HTTP task that change Wi-Fi** (joining from the setup page) are handed to the

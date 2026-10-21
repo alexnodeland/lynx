@@ -37,6 +37,12 @@ float easeInOutCubic(float t) {
   return t < 0.5f ? 4.f * t * t * t : 1.f - powf(-2.f * t + 2.f, 3.f) / 2.f;
 }
 
+float easeOutCubic(float t) {
+  t = clampf(t, 0.f, 1.f);
+  float u = 1.f - t;
+  return 1.f - u * u * u;
+}
+
 float glance(float t, float overshoot, float peak) {
   t = clampf(t, 0.f, 1.f);
   peak = clampf(peak, 0.05f, 1.f);
@@ -51,24 +57,26 @@ void AxisMotion::configure(const AxisCal& cal, const MotionConfig& cfg) {
   position_ = start_ = target_ = clampf(0.f, cal_.minDeg, cal_.maxDeg);
 }
 
-uint32_t AxisMotion::durationFor(float dist, int32_t requestedMs) const {
+uint32_t AxisMotion::durationFor(float dist, int32_t requestedMs, MoveStyle style) const {
   dist = fabsf(dist);
   if (dist < 0.01f) return 0;
-  float ov = fminf(dist * cfg_.overshootRatio, cfg_.maxOvershootDeg) / dist;
+  float ov = style == MoveStyle::Track ? 0.f : fminf(dist * cfg_.overshootRatio, cfg_.maxOvershootDeg) / dist;
   float peak = (ov > 0.f) ? cfg_.peakFraction : 1.f;
+  // both curves peak at slope 3: easeInOutCubic at t=0.5, easeOutCubic at t=0
   // easeInOutCubic peak slope is 3 (at t=0.5); phase 1 covers (1+ov)*dist in peak*D.
   float minMs = 1000.f * 3.f * (1.f + ov) * dist / (peak * cfg_.maxSpeedDegPerS);
   float want = requestedMs > 0 ? (float)requestedMs : cfg_.baseMs + cfg_.msPerDeg * dist;
   return (uint32_t)ceilf(fmaxf(want, minMs));
 }
 
-uint32_t AxisMotion::moveTo(float deg, int32_t requestedMs, uint32_t nowMs) {
+uint32_t AxisMotion::moveTo(float deg, int32_t requestedMs, uint32_t nowMs, MoveStyle style) {
   update(nowMs);
   target_ = clampf(deg, cal_.minDeg, cal_.maxDeg);
   start_ = position_;
   float dist = fabsf(target_ - start_);
-  overshootDeg_ = fminf(dist * cfg_.overshootRatio, cfg_.maxOvershootDeg);
-  duration_ = durationFor(dist, requestedMs);
+  style_ = style;
+  overshootDeg_ = style == MoveStyle::Track ? 0.f : fminf(dist * cfg_.overshootRatio, cfg_.maxOvershootDeg);
+  duration_ = durationFor(dist, requestedMs, style);
   t0_ = nowMs;
   attached_ = true;
   restSince_ = nowMs;
@@ -87,7 +95,8 @@ void AxisMotion::update(uint32_t nowMs) {
     } else {
       float dist = target_ - start_;
       float ov = fabsf(dist) > 0.f ? overshootDeg_ / fabsf(dist) : 0.f;
-      float p = glance((float)el / (float)duration_, ov, cfg_.peakFraction);
+      float t = (float)el / (float)duration_;
+      float p = style_ == MoveStyle::Track ? easeOutCubic(t) : glance(t, ov, cfg_.peakFraction);
       position_ = clampf(start_ + dist * p, cal_.minDeg, cal_.maxDeg);
     }
   } else if (attached_ && cfg_.idleDetachMs > 0 && (nowMs - restSince_) >= cfg_.idleDetachMs) {
@@ -124,6 +133,19 @@ uint32_t Motion::look(float pan, float tilt, int32_t ms, uint32_t nowMs) {
   return d;
 }
 
+uint32_t Motion::track(float pan, float tilt, int32_t ms, uint32_t nowMs) {
+  sweepStep_ = -1;
+  dwelling_ = false;
+  uint32_t a = axes_[PAN].moveTo(pan, ms, nowMs, MoveStyle::Track);
+  uint32_t b = axes_[TILT].moveTo(tilt, ms, nowMs, MoveStyle::Track);
+  uint32_t d = a > b ? a : b;
+  if (d > 0) {
+    axes_[PAN].moveTo(pan, (int32_t)d, nowMs, MoveStyle::Track);
+    axes_[TILT].moveTo(tilt, (int32_t)d, nowMs, MoveStyle::Track);
+  }
+  return d;
+}
+
 // Sweep waypoints as fractions of each axis's soft-limit range.
 static const float kSweep[][2] = {
     {0, 0}, {-1, 0}, {1, 0}, {0, 0}, {0, 1}, {0, -1}, {-1, 1}, {1, 1}, {1, -1}, {-1, -1}, {0, 0}};
@@ -147,7 +169,7 @@ void Motion::sweepStep(uint32_t nowMs) {
   dwelling_ = false;
   int next = sweepStep_ + 1;
   if (next >= kSweepLen) {
-    sweepStep_ = -1;
+    center(nowMs);  // end at the rest pose, not lens-up (resets sweepStep_)
     return;
   }
   auto frac = [](const AxisCal& c, float f) { return f < 0 ? -f * c.minDeg : f * c.maxDeg; };

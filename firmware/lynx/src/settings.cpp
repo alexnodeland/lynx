@@ -47,6 +47,12 @@ void loadSettings(Settings& s) {
   s.camera.vflip = getB(p, "cvf", s.camera.vflip);
   s.camera.hmirror = getB(p, "chm", s.camera.hmirror);
   s.camera.brightness = getI(p, "cbr", s.camera.brightness);
+  s.detect = getB(p, "det", false);
+  s.detectModel = getI(p, "detm", 0);
+  s.detectRange = getI(p, "detr", 1);
+  s.follow = getB(p, "fol", false);
+  s.followPanSign = getI(p, "folp", -1) < 0 ? -1 : 1;
+  s.followTiltSign = getI(p, "folt", 1) < 0 ? -1 : 1;
   p.end();
   if (s.token.length() != 32) {
     s.token = newToken();
@@ -64,6 +70,18 @@ void saveToken(const String& token) {
   Preferences p;
   p.begin(kNs, false);
   p.putString("token", token);
+  p.end();
+}
+
+void saveDetect(const Settings& s) {
+  Preferences p;
+  p.begin(kNs, false);
+  p.putBool("det", s.detect);
+  p.putInt("detm", s.detectModel);
+  p.putInt("detr", s.detectRange);
+  p.putBool("fol", s.follow);
+  p.putInt("folp", s.followPanSign);
+  p.putInt("folt", s.followTiltSign);
   p.end();
 }
 

@@ -28,6 +28,10 @@ It runs entirely on your LAN: no cloud, no MQTT broker.
 | `switch.…_flip_image`, `switch.…_mirror_image` | for however the board sits in the pod |
 | `number.…_brightness`, `number.…_jpeg_quality` | camera tuning (quality is off by default) |
 | `binary_sensor.…_moving` | the head is moving or sweeping |
+| `binary_sensor.…_detected` | occupancy: a face (or cat face) seen by the on-device detector in the last 10 s |
+| `sensor.…_detected_count` | how many are in view |
+| `switch.…_detection`, `switch.…_follow` | on-device detection, and follow mode (keeps the nearest face in frame) |
+| `select.…_detect`, `select.…_detection_range` | faces or cat faces; near or far |
 | `sensor.…_wi_fi_signal`, `sensor.…_last_boot`, `sensor.…_free_memory` | diagnostics |
 
 Plus the **`lynx.look`** action, which targets the camera:
@@ -57,6 +61,20 @@ actions:
   - action: camera.snapshot
     target: { entity_id: camera.lynx_42e0 }
     data: { filename: /media/lynx/door_{{ now().strftime('%Y%m%d_%H%M%S') }}.jpg }
+```
+
+Or: turn the lights on when lynx sees someone, and follow them while they're there.
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.lynx_42e0_detected
+    to: "on"
+actions:
+  - action: switch.turn_on
+    target: { entity_id: switch.lynx_42e0_follow }
+  - action: light.turn_on
+    target: { entity_id: light.study }
 ```
 
 ## Good to know

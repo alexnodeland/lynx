@@ -8,8 +8,12 @@
 #include <WiFi.h>
 #include <freertos/semphr.h>
 
+#include <atomic>
+
 #include "app.h"
 #include "camera.h"
+#include "detect.h"
+#include "follow.h"
 #include "net.h"
 #include "web.h"
 
@@ -33,6 +37,8 @@ static bool servoAttached[AXIS_COUNT] = {false, false};
 static int lastUs[AXIS_COUNT] = {-1, -1};
 static String line;
 static String cameraError;
+static Follow follower;
+static std::atomic<uint32_t> followPausedUntil{0};
 
 // ---------- hardware ----------
 
@@ -95,6 +101,20 @@ void statusJson(JsonObject j) {
   j["idleMs"] = settings.motion.idleDetachMs;
   j["maxSpeed"] = settings.motion.maxSpeedDegPerS;
   cameraJson(j["camera"].to<JsonObject>());
+  {
+    JsonObject d = j["detect"].to<JsonObject>();
+    Detections det = detectLatest();
+    uint32_t seen = detectLastSeenMs();
+    d["enabled"] = detectEnabled();
+    d["model"] = detectModelName(detectModel());
+    d["range"] = detectRangeName(detectRange());
+    d["count"] = detectEnabled() && millis() - det.at < 2000 ? det.n : 0;
+    d["present"] = seen && millis() - seen < 10000;  // seen in the last 10 s: what Home Assistant polls
+    if (seen) d["lastSeenAgoMs"] = millis() - seen;
+    d["fps"] = det.fps;
+    d["follow"] = settings.follow;
+    d["tracking"] = settings.follow && follower.tracking(millis());
+  }
   JsonObject n = j["network"].to<JsonObject>();
   n["name"] = hostName();
   n["id"] = deviceId();
@@ -154,7 +174,111 @@ bool applyCameraJson(JsonObjectConst in, std::string& error) {
   return true;
 }
 
+void detectionsJson(JsonObject o) {
+  Detections d = detectLatest();
+  uint32_t now = millis();
+  o["enabled"] = detectEnabled();
+  o["model"] = detectModelName(detectModel());
+  o["range"] = detectRangeName(detectRange());
+  if (d.at) o["ageMs"] = now - d.at;
+  else o["ageMs"] = nullptr;
+  o["fps"] = d.fps;
+  o["frame"]["w"] = d.inW;
+  o["frame"]["h"] = d.inH;
+  uint32_t seen = detectLastSeenMs();
+  o["present"] = seen && now - seen < 10000;
+  if (seen) o["lastSeenAgoMs"] = now - seen;
+  o["follow"] = settings.follow;
+  JsonArray a = o["objects"].to<JsonArray>();
+  if (!detectEnabled() || !d.at || now - d.at > 2000) return;  // stale: report nothing rather than old boxes
+  for (int i = 0; i < d.n; i++) {
+    JsonObject b = a.add<JsonObject>();
+    b["label"] = detectModelName(d.model);
+    b["score"] = roundf(d.box[i].score * 100) / 100;
+    JsonArray box = b["box"].to<JsonArray>();  // x, y, w, h, normalised 0..1, origin top-left
+    for (float v : {d.box[i].x, d.box[i].y, d.box[i].w, d.box[i].h}) box.add(roundf(v * 1000) / 1000);
+  }
+}
+
+bool applyDetectJson(JsonObjectConst in, std::string& error) {
+  int m = settings.detectModel;
+  if (!in["model"].isNull()) {
+    m = detectModelFromName(in["model"].as<const char*>());
+    if (m < 0) {
+      error = "model must be face or cat";
+      return false;
+    }
+  }
+  int rg = settings.detectRange;
+  if (!in["range"].isNull()) {
+    rg = detectRangeFromName(in["range"].as<const char*>());
+    if (rg < 0) {
+      error = "range must be near or far";
+      return false;
+    }
+  }
+  bool on = in["enabled"].isNull() ? settings.detect : in["enabled"].as<bool>();
+  settings.detect = on;
+  settings.detectModel = m;
+  settings.detectRange = rg;
+  if (!on) settings.follow = false;  // nothing to follow
+  detectSet(on, m, rg);
+  saveDetect(settings);
+  return true;
+}
+
+bool applyFollowJson(JsonObjectConst in, std::string& error) {
+  if (!in["panSign"].isNull()) settings.followPanSign = in["panSign"].as<int>() < 0 ? -1 : 1;
+  if (!in["tiltSign"].isNull()) settings.followTiltSign = in["tiltSign"].as<int>() < 0 ? -1 : 1;
+  if (!in["enabled"].isNull()) {
+    bool on = in["enabled"].as<bool>();
+    if (on && !settings.detect) {  // following needs detection: turn it on with the current model
+      settings.detect = true;
+      detectSet(true, settings.detectModel, settings.detectRange);
+    }
+    settings.follow = on;
+    follower.reset();
+  }
+  follower.config().panSign = settings.followPanSign;
+  follower.config().tiltSign = settings.followTiltSign;
+  saveDetect(settings);
+  return true;
+}
+
+void pauseFollow(uint32_t ms) { followPausedUntil = millis() + ms; }
+
 }  // namespace lynx
+
+// ---------- follow mode ----------
+
+static void pollFollow(uint32_t now) {
+  static uint32_t lastSeq = 0;
+  if (!settings.follow || !detectEnabled()) return;
+  MotionLock l;
+  float pan = motion.axis(PAN).target(), tilt = motion.axis(TILT).target();
+  FollowMove m;
+  Detections d = detectLatest();
+  if (d.seq != lastSeq) {
+    lastSeq = d.seq;
+    Target t[8];
+    for (int i = 0; i < d.n; i++) {
+      // image coordinates -> camera-relative, undoing the flip/mirror the user set for display
+      float cx = (d.box[i].x + d.box[i].w / 2) * 2 - 1, cy = (d.box[i].y + d.box[i].h / 2) * 2 - 1;
+      if (settings.camera.hmirror) cx = -cx;
+      if (settings.camera.vflip) cy = -cy;
+      t[i].cx = cx;
+      t[i].cy = cy;
+      t[i].size = d.box[i].w * d.box[i].h;
+      t[i].score = d.box[i].score;
+    }
+    m = follower.onFrame(now, t, d.n, pan, tilt);
+  } else {
+    m = follower.tick(now, pan, tilt);
+  }
+  if (!m.move || (int32_t)(now - followPausedUntil.load()) < 0 || motion.sweeping()) return;
+  if (m.rest) motion.look(m.pan, m.tilt, -1, now);  // a calm glance home
+  else motion.track(m.pan, m.tilt, 220, now);
+}
 
 // ---------- serial commands ----------
 
@@ -184,6 +308,9 @@ static void printHelp() {
       "  token                     print the API token\n"
       "  token new                 mint a new API token (old one stops working)\n"
       "  info                      name, address, version\n"
+      "  detect [off|face|cat]     on-device detection (no arg: print what it sees)\n"
+      "  follow [on|off]           turn the head to keep a face in frame\n"
+      "  follow signs <pan> <tilt> +1/-1 each, for how the board sits in the pod\n"
       "  save                      persist calibration/limits to NVS\n"
       "  status                    print JSON status\n"
       "  help"));
@@ -205,6 +332,7 @@ static void handleCommand(String cmd) {
   c.toLowerCase();
   uint32_t now = millis();
   MotionLock lock;  // the HTTP tasks touch motion too
+  if (c == "pan" || c == "tilt" || c == "look" || c == "center" || c == "centre" || c == "sweep") pauseFollow();
 
   if (c == "help" || c == "?") {
     printHelp();
@@ -276,6 +404,31 @@ static void handleCommand(String cmd) {
     Serial.printf("new token: %s\n", settings.token.c_str());
   } else if (c == "token") {
     Serial.printf("token: %s\n", settings.token.c_str());
+  } else if (c == "detect") {
+    JsonDocument in, out;
+    std::string err;
+    if (n >= 2) {
+      if (tok[1] == "off") in["enabled"] = false;
+      else { in["enabled"] = true; in["model"] = tok[1].c_str(); }
+      if (!applyDetectJson(in.as<JsonObjectConst>(), err)) Serial.printf("? %s\n", err.c_str());
+    }
+    detectionsJson(out.to<JsonObject>());
+    serializeJson(out, Serial);
+    Serial.println();
+  } else if (c == "follow" && n >= 4 && tok[1] == "signs") {
+    JsonDocument in;
+    std::string err;
+    in["panSign"] = tok[2].toInt();
+    in["tiltSign"] = tok[3].toInt();
+    applyFollowJson(in.as<JsonObjectConst>(), err);
+    Serial.printf("follow signs pan %d tilt %d\n", settings.followPanSign, settings.followTiltSign);
+  } else if (c == "follow") {
+    JsonDocument in;
+    std::string err;
+    if (n >= 2) in["enabled"] = tok[1] == "on";
+    applyFollowJson(in.as<JsonObjectConst>(), err);
+    Serial.printf("follow %s (detect %s, %s)\n", settings.follow ? "on" : "off", detectEnabled() ? "on" : "off",
+                  detectModelName(detectModel()));
   } else if (c == "info") {
     Serial.printf("lynx %s  %s  http://%s/  ip %s  wifi %s%s\n", kVersion, hostName().c_str(), mdnsName().c_str(),
                   staIp().length() ? staIp().c_str() : "-", wifiState(), setupMode() ? "  (setup hotspot up)" : "");
@@ -310,6 +463,11 @@ void setup() {
   motion.center(millis());  // boot into the rest pose
 
   if (!cameraBegin(settings.camera, cameraError)) Serial.printf("camera: %s\n", cameraError.c_str());
+  follower.config().panSign = settings.followPanSign;
+  follower.config().tiltSign = settings.followTiltSign;
+  follower.config().restTilt = Motion::kRestTiltDeg;
+  detectBegin();
+  detectSet(settings.detect, settings.detectModel, settings.detectRange);
   netBegin();
   webBegin();
   Serial.printf("lynx %s ready as %s (type 'help')\n", kVersion, hostName().c_str());
@@ -319,6 +477,7 @@ void loop() {
   uint32_t now = millis();
   pollSerial();
   netLoop();
+  pollFollow(now);
   {
     MotionLock l;
     motion.update(now);

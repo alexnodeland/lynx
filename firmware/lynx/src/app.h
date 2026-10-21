@@ -33,4 +33,11 @@ void statusJson(JsonObject j);
 bool applyCameraJson(JsonObjectConst in, std::string& error);
 void cameraJson(JsonObject out);
 
+// Detection + follow, shared by REST, MCP and serial. Each takes the lock it needs and saves to NVS.
+void detectionsJson(JsonObject out);  // the latest frame's boxes and a summary
+bool applyDetectJson(JsonObjectConst in, std::string& error);  // {enabled, model}
+bool applyFollowJson(JsonObjectConst in, std::string& error);  // {enabled, panSign, tiltSign}
+// A manual move pauses follow for a few seconds, so the head goes where you asked.
+void pauseFollow(uint32_t ms = 5000);
+
 }  // namespace lynx

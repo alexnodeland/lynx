@@ -16,7 +16,30 @@ PARALLEL_UPDATES = 0
 async def async_setup_entry(
     hass: HomeAssistant, entry: LynxConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
-    async_add_entities([LynxMoving(entry.runtime_data)])
+    async_add_entities([LynxMoving(entry.runtime_data), LynxDetected(entry.runtime_data)])
+
+
+class LynxDetected(LynxEntity, BinarySensorEntity):
+    """Something (a face, or a cat's face) seen in the last 10 s, by the on-device detector."""
+
+    _attr_translation_key = "detected"
+    _attr_device_class = BinarySensorDeviceClass.OCCUPANCY
+
+    def __init__(self, coordinator: LynxCoordinator) -> None:
+        super().__init__(coordinator, "detected")
+
+    @property
+    def available(self) -> bool:
+        return super().available and bool(self.status.get("detect", {}).get("enabled"))
+
+    @property
+    def is_on(self) -> bool | None:
+        return bool(self.status.get("detect", {}).get("present"))
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        d = self.status.get("detect", {})
+        return {"model": d.get("model"), "count": d.get("count"), "tracking": d.get("tracking")}
 
 
 class LynxMoving(LynxEntity, BinarySensorEntity):

@@ -42,6 +42,18 @@ frames with faint noise. Then check that the lens film is off.
 **The stream says 503.** Someone else is already watching: lynx serves one live viewer at a time.
 Snapshots still work. Close the other viewer (a second dashboard tab counts).
 
+## Detection and follow
+
+**Detection never sees anyone.** Set `range` to `far` (the default): with `near`, a face has
+to fill ~30 % of the frame. Check the light, too. To test it without anyone in front of the camera,
+send a photo to `/api/detect/image`, and add `?debug=1` to see exactly what the model got.
+
+**Follow turns the wrong way.** That's how the board sits in the pod. Run `follow signs -1 1` or
+`follow signs 1 -1` on the serial console (or `POST /api/follow {"panSign": 1}`). It's saved.
+
+**Follow fights my manual moves.** Any manual move pauses follow for 5 s, and a sweep for 30 s.
+Turn follow off to keep the head still.
+
 ## Motion
 
 **The head doesn't move on battery.** That's expected: the servos run only from USB 5 V. The camera

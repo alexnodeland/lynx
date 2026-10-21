@@ -10,7 +10,9 @@ static const char* kLegacy[] = {"2025-11-25", "2025-06-18", "2025-03-26"};
 static const char* kInstructions =
     "lynx is a pan/tilt camera. Angles are degrees: pan -88..88 (0 = straight ahead, positive = to the "
     "camera's left), tilt -58..58 (0 = lens straight up, 45 = the rest pose, leaning toward the front). "
-    "Use snapshot to see what it sees; video is not carried over MCP, use stream_url for a live MJPEG feed.";
+    "Use snapshot to see what it sees; video is not carried over MCP, use stream_url for a live MJPEG feed. "
+    "detect runs on-device face (or cat-face) detection and returns boxes; follow keeps a face in frame. "
+    "Detection only: nobody is identified.";
 
 // JSON-RPC / MCP error codes
 enum : int {
@@ -90,6 +92,8 @@ static void schemaNumber(JsonObject props, const char* name, float lo, float hi,
   p["description"] = desc;
 }
 
+static void t_required(JsonObject tool, const char* name) { tool["inputSchema"]["required"].add(name); }
+
 static void addTool(JsonArray tools, const char* name, const char* title, const char* desc, bool readOnly,
                     JsonObject* propsOut = nullptr) {
   JsonObject t = tools.add<JsonObject>();
@@ -131,6 +135,24 @@ static void listTools(JsonObject result) {
   props["vflip"]["type"] = "boolean";
   props["hmirror"]["type"] = "boolean";
   schemaNumber(props, "brightness", -2, 2, "Brightness -2..2.");
+  addTool(tools, "detect", "Detect",
+          "On-device detection: which faces (or cat faces) the camera sees now, as boxes normalised to the frame "
+          "(x, y, w, h; origin top-left). Pass enabled/model to switch it; it stays on until turned off.",
+          false, &props);
+  props["enabled"]["type"] = "boolean";
+  JsonObject dm = props["model"].to<JsonObject>();
+  dm["type"] = "string";
+  dm["enum"].add("face");
+  dm["enum"].add("cat");
+  JsonObject dr = props["range"].to<JsonObject>();
+  dr["type"] = "string";
+  dr["enum"].add("near");
+  dr["enum"].add("far");
+  dr["description"] = "near: faces filling ~30 % of the frame (fastest); far: down to ~12 %, across a room.";
+  addTool(tools, "follow", "Follow", "Turn follow mode on or off: the head keeps the nearest face in the middle of the frame.",
+          false, &props);
+  props["enabled"]["type"] = "boolean";
+  t_required(tools[tools.size() - 1], "enabled");
 }
 
 static void text(JsonArray content, const std::string& s) {
@@ -197,6 +219,46 @@ static bool callTool(Device& dev, const std::string& name, JsonObjectConst args,
       return false;
     }
     text(content, "camera settings updated");
+  } else if (name == "detect") {
+    if (!args["enabled"].isNull() || !args["model"].isNull()) {
+      std::string e;
+      if (!dev.setDetect(args, e)) {
+        err = e;
+        return false;
+      }
+    }
+    JsonDocument d;
+    dev.detections(d.to<JsonObject>());
+    result["structuredContent"] = d.as<JsonVariantConst>();
+    JsonArrayConst objs = d["objects"];
+    if (!d["enabled"].as<bool>()) {
+      text(content, "detection is off; call detect with enabled: true to start it");
+    } else {
+      snprintf(buf, sizeof buf, "%u %s%s in view", (unsigned)objs.size(), d["model"].as<const char*>(),
+               objs.size() == 1 ? "" : "s");
+      std::string s = buf;
+      for (JsonObjectConst o : objs) {
+        JsonArrayConst b = o["box"];
+        float cx = b[0].as<float>() + b[2].as<float>() / 2, cy = b[1].as<float>() + b[3].as<float>() / 2;
+        snprintf(buf, sizeof buf, "\n- %s %.0f%% at %s%s (box %.2f, %.2f, %.2f, %.2f)", o["label"].as<const char*>(),
+                 o["score"].as<float>() * 100, cy < 0.33f ? "top " : (cy > 0.66f ? "bottom " : ""),
+                 cx < 0.33f ? "left" : (cx > 0.66f ? "right" : "centre"), b[0].as<float>(), b[1].as<float>(),
+                 b[2].as<float>(), b[3].as<float>());
+        s += buf;
+      }
+      text(content, s);
+    }
+  } else if (name == "follow") {
+    if (args["enabled"].isNull()) {
+      err = "follow needs enabled: true or false";
+      return false;
+    }
+    std::string e;
+    if (!dev.setFollow(args, e)) {
+      err = e;
+      return false;
+    }
+    text(content, args["enabled"].as<bool>() ? "following the nearest face" : "follow off");
   } else {
     err = "unknown tool: " + name;
     return false;
