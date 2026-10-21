@@ -8,7 +8,7 @@
 
 namespace lynx {
 
-enum DetectModel { DETECT_FACE = 0, DETECT_CAT = 1 };
+enum DetectModel { DETECT_FACE = 0, DETECT_CAT = 1, DETECT_CUSTOM = 2 };  // custom: an Edge Impulse model, if installed
 // How small a face can be. near: faces from ~30 % of the frame wide (arm's length, fastest);
 // far: down to ~12 %, across a room, at a lower frame rate.
 enum DetectRange { RANGE_NEAR = 0, RANGE_FAR = 1 };
@@ -23,6 +23,7 @@ struct Detections {
   uint32_t at = 0;    // millis() of that frame
   int n = 0;
   DetectBox box[8];
+  const char* label[8] = {};  // per box; points at static strings ("face", "cat", or the custom model's labels)
   float fps = 0;      // processed frames per second, smoothed
   int inW = 0, inH = 0;  // the scaled image the model saw
   int model = DETECT_FACE;
@@ -35,7 +36,9 @@ const char* detectRangeName(int range);  // "near" | "far"
 int detectRangeFromName(const char* name);
 bool detectEnabled();
 int detectModel();
-const char* detectModelName(int model);  // "face" | "cat"
+const char* detectModelName(int model);  // "face" | "cat" | "custom"
+bool detectCustomAvailable();
+const char* detectCustomName();  // the installed Edge Impulse project, "" if none
 int detectModelFromName(const char* name);  // -1 if unknown
 Detections detectLatest();
 uint32_t detectLastSeenMs();  // millis() when something was last detected, 0 = never

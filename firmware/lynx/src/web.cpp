@@ -277,7 +277,7 @@ static esp_err_t detectImageHandler(httpd_req_t* r) {
   JsonArray a = out["objects"].to<JsonArray>();
   for (int i = 0; i < d.n; i++) {
     JsonObject b = a.add<JsonObject>();
-    b["label"] = detectModelName(d.model);
+    b["label"] = d.label[i] ? d.label[i] : detectModelName(d.model);
     b["score"] = roundf(d.box[i].score * 100) / 100;
     JsonArray box = b["box"].to<JsonArray>();
     for (float v : {d.box[i].x, d.box[i].y, d.box[i].w, d.box[i].h}) box.add(roundf(v * 1000) / 1000);

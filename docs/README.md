@@ -12,6 +12,7 @@ Pick the path that matches what you're doing. Every page links back here.
 | [Electronics](../hardware/electronics) | circuit, nets, the carrier board and the wiring harness |
 | [Web flasher](https://alexnodeland.github.io/lynx/flash.html) | install the firmware from Chrome or Edge, no toolchain |
 | [Troubleshooting](troubleshooting.md) | what's gone wrong before, and the fix |
+| [Custom detection models](custom-models.md) | teach it new things: capture with lynx, train in Edge Impulse, `just model-add` |
 
 ## I have one and want to use it
 

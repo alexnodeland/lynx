@@ -24,7 +24,7 @@ async def async_setup_entry(
     async_add_entities(
         [
             LynxResolution(c),
-            LynxDetectSelect(c, "detect_model", "model", ["face", "cat"]),
+            LynxDetectSelect(c, "detect_model", "model", ["face", "cat", "custom"]),
             LynxDetectSelect(c, "detect_range", "range", ["near", "far"]),
         ]
     )
@@ -40,6 +40,13 @@ class LynxDetectSelect(LynxEntity, SelectEntity):
         self._attr_translation_key = key
         self._attr_options = options
         self._field = field
+
+    @property
+    def options(self) -> list[str]:
+        # `custom` only when the device has an Edge Impulse model installed
+        if self._field == "model" and not self.status.get("detect", {}).get("customModel"):
+            return [o for o in self._attr_options if o != "custom"]
+        return self._attr_options
 
     @property
     def current_option(self) -> str | None:

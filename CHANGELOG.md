@@ -8,6 +8,9 @@
 - **Follow mode:** keeps the nearest face centred, using no-overshoot track moves. It holds, then returns to rest.
   Manual moves pause it. `lib/follow` has native tests, including a closed loop.
 - `/api/detect/image` runs detection on an uploaded JPEG (`?debug=1` returns the model's input).
+- **Custom models (Edge Impulse):** `just capture <label>` collects training images with lynx itself, and
+  `just model-add export.zip` installs an export as `model: custom` (FOMO boxes or a classifier's label). Proven on
+  the board with a public export; CI builds with it.
 - Fix: the demo sweep ends at the rest pose instead of lens-up.
 
 ## 0.3.0 (2026-10-20)

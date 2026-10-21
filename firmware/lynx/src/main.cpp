@@ -108,6 +108,7 @@ void statusJson(JsonObject j) {
     d["enabled"] = detectEnabled();
     d["model"] = detectModelName(detectModel());
     d["range"] = detectRangeName(detectRange());
+    if (detectCustomAvailable()) d["customModel"] = detectCustomName();
     d["count"] = detectEnabled() && millis() - det.at < 2000 ? det.n : 0;
     d["present"] = seen && millis() - seen < 10000;  // seen in the last 10 s: what Home Assistant polls
     if (seen) d["lastSeenAgoMs"] = millis() - seen;
@@ -180,6 +181,7 @@ void detectionsJson(JsonObject o) {
   o["enabled"] = detectEnabled();
   o["model"] = detectModelName(detectModel());
   o["range"] = detectRangeName(detectRange());
+  if (detectCustomAvailable()) o["customModel"] = detectCustomName();
   if (d.at) o["ageMs"] = now - d.at;
   else o["ageMs"] = nullptr;
   o["fps"] = d.fps;
@@ -193,7 +195,7 @@ void detectionsJson(JsonObject o) {
   if (!detectEnabled() || !d.at || now - d.at > 2000) return;  // stale: report nothing rather than old boxes
   for (int i = 0; i < d.n; i++) {
     JsonObject b = a.add<JsonObject>();
-    b["label"] = detectModelName(d.model);
+    b["label"] = d.label[i] ? d.label[i] : detectModelName(d.model);
     b["score"] = roundf(d.box[i].score * 100) / 100;
     JsonArray box = b["box"].to<JsonArray>();  // x, y, w, h, normalised 0..1, origin top-left
     for (float v : {d.box[i].x, d.box[i].y, d.box[i].w, d.box[i].h}) box.add(roundf(v * 1000) / 1000);
@@ -205,7 +207,8 @@ bool applyDetectJson(JsonObjectConst in, std::string& error) {
   if (!in["model"].isNull()) {
     m = detectModelFromName(in["model"].as<const char*>());
     if (m < 0) {
-      error = "model must be face or cat";
+      error = detectCustomAvailable() ? "model must be face, cat or custom"
+                                      : "model must be face or cat (no custom model is installed)";
       return false;
     }
   }

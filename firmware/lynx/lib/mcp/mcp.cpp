@@ -136,7 +136,7 @@ static void listTools(JsonObject result) {
   props["hmirror"]["type"] = "boolean";
   schemaNumber(props, "brightness", -2, 2, "Brightness -2..2.");
   addTool(tools, "detect", "Detect",
-          "On-device detection: which faces (or cat faces) the camera sees now, as boxes normalised to the frame "
+          "On-device detection: which faces, cat faces, or (with a custom model installed) other things the camera sees now, as boxes normalised to the frame "
           "(x, y, w, h; origin top-left). Pass enabled/model to switch it; it stays on until turned off.",
           false, &props);
   props["enabled"]["type"] = "boolean";
@@ -144,6 +144,7 @@ static void listTools(JsonObject result) {
   dm["type"] = "string";
   dm["enum"].add("face");
   dm["enum"].add("cat");
+  dm["enum"].add("custom");
   JsonObject dr = props["range"].to<JsonObject>();
   dr["type"] = "string";
   dr["enum"].add("near");

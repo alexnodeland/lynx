@@ -10,6 +10,7 @@
 #include <cstring>
 
 #include "camera.h"
+#include "detect_ei.h"
 #include "cat_face_detect_mn03.hpp"
 #include "human_face_detect_mnp01.hpp"
 #include "human_face_detect_msr01.hpp"
@@ -39,16 +40,19 @@ static uint8_t* testImg = nullptr;
 static size_t testImgLen = 0;
 static int testStage1 = 0;  // candidates from the first stage, for diagnosis
 
-const char* detectModelName(int m) { return m == DETECT_CAT ? "cat" : "face"; }
+const char* detectModelName(int m) { return m == DETECT_CAT ? "cat" : (m == DETECT_CUSTOM ? "custom" : "face"); }
+bool detectCustomAvailable() { return customAvailable(); }
+const char* detectCustomName() { return customModelName(); }
 int detectModelFromName(const char* n) {
   if (!n) return -1;
   if (!strcmp(n, "face")) return DETECT_FACE;
   if (!strcmp(n, "cat")) return DETECT_CAT;
+  if (!strcmp(n, "custom")) return customAvailable() ? DETECT_CUSTOM : -1;
   return -1;
 }
 
 void detectSet(bool on, int m, int r) {
-  model = m == DETECT_CAT ? DETECT_CAT : DETECT_FACE;
+  model = (m == DETECT_CAT || (m == DETECT_CUSTOM && customAvailable())) ? m : DETECT_FACE;
   range = r == RANGE_NEAR ? RANGE_NEAR : RANGE_FAR;
   enabled = on;
 }
@@ -147,26 +151,33 @@ static void task(void*) {
       face1 = new HumanFaceDetectMSR01(0.1F, 0.5F, 10, kRangeScale[built]);
       cat = new CatFaceDetectMN03(0.4F, 0.3F, 10, kRangeScale[built] * 1.5f);
     }
-    std::list<dl::detect::result_t>* res;
-    if (m == DETECT_CAT) {
+    Detections d;
+    d.at = at;
+    d.inW = w;
+    d.inH = h;
+    d.model = m;
+    std::list<dl::detect::result_t>* res = nullptr;
+    if (m == DETECT_CUSTOM) {
+      int n = customInfer(rgb, w, h, d.box, d.label, 8);
+      d.n = n < 0 ? 0 : n;
+    } else if (m == DETECT_CAT) {
       res = &cat->infer((uint16_t*)rgb, shape);
     } else {
       std::list<dl::detect::result_t>& cand = face1->infer((uint16_t*)rgb, shape);
       if (isTest) testStage1 = cand.size();
       res = &face2.infer((uint16_t*)rgb, shape, cand);  // second stage refines and confirms
     }
-    Detections d;
-    d.at = at;
-    d.inW = w;
-    d.inH = h;
-    d.model = m;
-    for (auto& r : *res) {
+    const char* name = detectModelName(m);
+    for (int i = 0; i < d.n; i++)
+      if (!d.label[i]) d.label[i] = name;
+    if (res) for (auto& r : *res) {
       if (d.n >= 8 || r.box.size() < 4) break;
       float x1 = constrain(r.box[0], 0, w), y1 = constrain(r.box[1], 0, h);
       float x2 = constrain(r.box[2], 0, w), y2 = constrain(r.box[3], 0, h);
       if (x2 <= x1 || y2 <= y1) continue;
       // the face model scores 0..1; the cat model's come out raw, so squash those to 0..1 too
       float sc = (r.score < 0.f || r.score > 1.f) ? 1.f / (1.f + expf(-r.score)) : r.score;
+      d.label[d.n] = name;
       d.box[d.n++] = {x1 / w, y1 / h, (x2 - x1) / w, (y2 - y1) / h, sc};
     }
     if (isTest) {  // answer the caller; don't touch the live results or the follow state

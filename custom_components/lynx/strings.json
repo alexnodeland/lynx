@@ -99,7 +99,8 @@
         "name": "Detect",
         "state": {
           "face": "Faces",
-          "cat": "Cat faces"
+          "cat": "Cat faces",
+          "custom": "Custom model"
         }
       },
       "detect_range": {

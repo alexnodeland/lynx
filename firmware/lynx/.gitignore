@@ -1,2 +1,4 @@
 .pio/
 .vscode/
+lib/lynx_model/
+lib/.model-unpack/

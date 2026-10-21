@@ -134,6 +134,7 @@ Pure logic lives in `lib/`. It has no Arduino includes, builds for the board and
 | `src/web.*` | `esp_http_server`: port 80 (pages, REST, MCP, snapshot), port 81 (stream) |
 | `src/camera.*` | esp32-camera on the XIAO Sense pins |
 | `src/detect.*` | ESP-DL face / cat-face detection in its own task, on a scaled copy of each JPEG |
+| `src/detect_ei.*` | an optional Edge Impulse model (`lib/lynx_model`, from `just model-add`) as the `custom` detector |
 | `src/pages.h` | setup page, dashboard, shared CSS (no external assets) |
 | `src/settings.*` | NVS (Preferences, namespace `lynx`): calibration, Wi-Fi, token, camera |
 | `tools/merge_bin.py` | post-build: `lynx.bin`, one image to flash at 0x0 (used by the web flasher) |
@@ -241,7 +242,7 @@ image and stream URLs go straight into an `<img>`, VLC or Home Assistant.
 | `POST /api/camera` | `{"framesize":"SVGA","quality":10,"vflip":false,"hmirror":false,"brightness":0}` | change any of them (saved) |
 | `GET /snapshot.jpg` | | one JPEG frame |
 | `GET /api/detections` | | the latest detections: boxes `[x, y, w, h]` normalised 0..1, scores, fps |
-| `POST /api/detect` | `{"enabled":true,"model":"face","range":"far"}` | detection on/off, `face`/`cat`, `near`/`far` (saved) |
+| `POST /api/detect` | `{"enabled":true,"model":"face","range":"far"}` | detection on/off; `face`, `cat` or `custom` (if installed); `near`/`far` (saved) |
 | `POST /api/follow` | `{"enabled":true}` (and `panSign`/`tiltSign`) | follow mode (turns detection on if needed) |
 | `POST /api/detect/image` | a JPEG (`?debug=1` returns what the model saw) | run detection on your own image: testing and tuning |
 | `GET :81/stream` | `?fps=10` optional | MJPEG live video, **one viewer at a time** (a second gets `503`) |
@@ -325,8 +326,10 @@ It runs at about 3.6 fps with `range: far` and about 4.1 fps with `near`.
   `curl -X POST -H "Authorization: Bearer $TOKEN" --data-binary @photo.jpg http://lynx-xxxx.local/api/detect/image`.
   Add `?debug=1` to get back the image the model actually saw.
 
-**Next: custom classes.** The plan is to collect images with lynx itself, train a small detector in
-Edge Impulse, and build it into the firmware as a third model. A whole-body *person* model is the first one planned.
+**Custom models.** Anything else (a whole-body person, a package, your dog) comes from an Edge Impulse
+export: `just capture`, then label and train, then `just model-add export.zip`, and it becomes `model: custom`.
+See [docs/custom-models.md](../../docs/custom-models.md). Proven on the board with a public Edge Impulse
+export: +0.72 MB flash, ~1.5 fps for a 96 × 96 classifier.
 
 ## Home Assistant
 

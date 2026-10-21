@@ -103,6 +103,19 @@ async def test_detection_entities(hass, entry, lynx):
     assert {"model": "cat"} in bodies and {"enabled": False} in bodies
 
 
+async def test_custom_model_option_only_when_installed(hass, entry, aioclient_mock, status):
+    aioclient_mock.get(f"{BASE}/api/info", json=INFO)
+    status["detect"]["customModel"] = "lynx-package"
+    aioclient_mock.get(f"{BASE}/api/status", json=status)
+    await setup(hass, entry)
+    assert "custom" in hass.states.get("select.lynx_42e0_detect").attributes["options"]
+
+
+async def test_no_custom_option_without_a_model(hass, entry, lynx):
+    await setup(hass, entry)
+    assert hass.states.get("select.lynx_42e0_detect").attributes["options"] == ["face", "cat"]
+
+
 async def test_detected_unavailable_when_detection_off(hass, entry, aioclient_mock, status):
     status["detect"]["enabled"] = False
     aioclient_mock.get(f"{BASE}/api/info", json=INFO)

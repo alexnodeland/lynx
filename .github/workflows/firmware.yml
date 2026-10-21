@@ -43,3 +43,22 @@ jobs:
           cp .pio/build/xiao/lynx.bin "lynx-${GITHUB_REF_NAME}.bin"
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes
           gh release upload "$GITHUB_REF_NAME" "lynx-${GITHUB_REF_NAME}.bin" --clobber
+  custom-model:
+    # proves the Edge Impulse adapter (src/detect_ei.cpp) still builds against a real export
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ hashFiles('firmware/lynx/platformio.ini') }}
+      - uses: extractions/setup-just@v2
+      - run: pip install platformio==6.1.18
+      - name: Seeed's public Edge Impulse export for the XIAO ESP32-S3
+        run: curl -fsSL -o /tmp/ei.zip https://files.seeedstudio.com/wiki/tinyml-topic/res/xiao-esp32s3-fruits-classify_inferencing.zip
+      - run: just model-add /tmp/ei.zip
+      - run: pio run -e xiao
+        working-directory: firmware/lynx
