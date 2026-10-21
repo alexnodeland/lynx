@@ -2,6 +2,9 @@
 #include "settings.h"
 
 #include <Preferences.h>
+#include <esp_random.h>
+
+#include "auth.h"
 
 namespace lynx {
 
@@ -31,6 +34,40 @@ void loadSettings(Settings& s) {
   s.motion.idleDetachMs = p.getUInt("idle", m.idleDetachMs);
   s.ssid = p.getString("ssid", "");
   s.pass = p.getString("pass", "");
+  s.token = p.getString("token", "");
+  s.camera.framesize = p.getInt("cfs", s.camera.framesize);
+  s.camera.quality = p.getInt("cq", s.camera.quality);
+  s.camera.vflip = p.getBool("cvf", s.camera.vflip);
+  s.camera.hmirror = p.getBool("chm", s.camera.hmirror);
+  s.camera.brightness = p.getInt("cbr", s.camera.brightness);
+  p.end();
+  if (s.token.length() != 32) {
+    s.token = newToken();
+    saveToken(s.token);
+  }
+}
+
+String newToken() {
+  uint8_t b[16];
+  esp_fill_random(b, sizeof b);
+  return String(tokenFromBytes(b).c_str());
+}
+
+void saveToken(const String& token) {
+  Preferences p;
+  p.begin(kNs, false);
+  p.putString("token", token);
+  p.end();
+}
+
+void saveCamera(const CameraSettings& c) {
+  Preferences p;
+  p.begin(kNs, false);
+  p.putInt("cfs", c.framesize);
+  p.putInt("cq", c.quality);
+  p.putBool("cvf", c.vflip);
+  p.putBool("chm", c.hmirror);
+  p.putInt("cbr", c.brightness);
   p.end();
 }
 

@@ -6,7 +6,9 @@
   <a href="https://github.com/alexnodeland/lynx/actions/workflows/pages.yml"><img alt="Pages deploy" src="https://img.shields.io/github/actions/workflow/status/alexnodeland/lynx/pages.yml?branch=main&label=site&logo=github"></a>
   <a href="https://alexnodeland.github.io/lynx/"><img alt="Site" src="https://img.shields.io/badge/site-alexnodeland.github.io%2Flynx-2ea44f"></a>
   <img alt="Printable parts" src="https://img.shields.io/badge/printed%20parts-8-555">
-  <a href="firmware/lynx-motion"><img alt="PlatformIO" src="https://img.shields.io/badge/PlatformIO-ESP32--S3-f5822a?logo=platformio&logoColor=white"></a>
+  <a href="https://github.com/alexnodeland/lynx/actions/workflows/firmware.yml"><img alt="Firmware" src="https://github.com/alexnodeland/lynx/actions/workflows/firmware.yml/badge.svg"></a>
+  <a href="firmware/lynx#mcp"><img alt="MCP server" src="https://img.shields.io/badge/MCP-server-7fd6a4"></a>
+  <a href="firmware/lynx"><img alt="PlatformIO" src="https://img.shields.io/badge/PlatformIO-ESP32--S3-f5822a?logo=platformio&logoColor=white"></a>
   <a href="web"><img alt="three.js" src="https://img.shields.io/badge/three.js-0.170-000?logo=threedotjs"></a>
   <br>
   <a href="LICENSES/CERN-OHL-S-2.0.txt"><img alt="Hardware licence" src="https://img.shields.io/badge/hardware-CERN--OHL--S--2.0-blue"></a>
@@ -24,7 +26,7 @@ An open-source pan/tilt camera built around the Seeed XIAO ESP32-S3 Sense. It ha
 |------|----------|
 | [`hardware/production`](hardware/production) | Print-ready STL/STEP, assembly STEP, [BOM](hardware/production/BOM.md) |
 | [`hardware/electronics`](hardware/electronics) | Circuit, nets, parts, wiring harness (servo-carrier PCB in progress) |
-| [`firmware/lynx-motion`](firmware/lynx-motion) | PlatformIO motor-control firmware: pan D0, tilt D1, eased moves, serial + HTTP API |
+| [`firmware/lynx`](firmware/lynx) | PlatformIO firmware: eased pan/tilt, camera snapshots + MJPEG stream, REST API, MCP server, setup hotspot, per-device token |
 | [`web`](web) | three.js landing page (Vite + GSAP) |
 | `media` | Renders and screenshots |
 
@@ -40,7 +42,9 @@ An open-source pan/tilt camera built around the Seeed XIAO ESP32-S3 Sense. It ha
 | Decoupling | 470 µF 6.3 V bulk + 100 nF across the servo 5 V rail |
 | Fasteners | 9 × M2 × 8 thread-forming, pan head — the only screw |
 | Printed parts | 8 (base, lid, battery tray, yoke, pan base, pan cap, servo shroud, light pipe) |
-| Control | serial console (115200) and HTTP API / control page over Wi-Fi |
+| Control | on your network: REST API, MCP server for AI agents, MJPEG stream (port 81), dashboard; per-device token; serial console |
+| Setup | first-boot Wi-Fi hotspot `lynx-xxxx` with a captive setup page; `lynx-xxxx.local` via mDNS |
+| Rest pose | pan 0°, tilt 45°: the lens leans toward the front (tilt 0° points it straight up) |
 | Battery | optional 150 mAh LiPo keeps the camera up; servos run on USB power only |
 
 ## System
@@ -98,15 +102,27 @@ Follow the ten steps in the [BOM's assembly section](hardware/production/BOM.md#
 
 ### 3. Flash
 
+The easiest way is from a browser: open the [web flasher](https://alexnodeland.github.io/lynx/flash.html) in Chrome or Edge, plug in over USB-C, and click Install. Or with PlatformIO:
+
 ```sh
-cd firmware/lynx-motion
+cd firmware/lynx
 pio run -e xiao -t upload       # build and flash over USB-C
-pio device monitor -b 115200    # serial console: try `center`, `sweep`, `status`
+pio device monitor -b 115200    # serial console: try `info`, `center`, `sweep`
 ```
 
-Calibrate before fixing the horns — see [`firmware/lynx-motion`](firmware/lynx-motion#calibration).
+Calibrate before fixing the horns: see [`firmware/lynx`](firmware/lynx#calibration).
 
-### 4. Run the site locally
+### 4. Connect
+
+On first boot lynx opens a Wi-Fi hotspot, **`lynx-xxxx`**. Join it from a phone, pick your network, and save the token the setup page shows. Then open `http://lynx-xxxx.local/` for the live view and controls, or hook up an AI agent:
+
+```sh
+claude mcp add --transport http lynx http://lynx-xxxx.local/mcp --header "Authorization: Bearer <token>"
+```
+
+The full API and MCP tool list are in [`firmware/lynx`](firmware/lynx#http-api).
+
+### 5. Run the site locally
 
 ```sh
 cd web

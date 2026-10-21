@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// lynx-motion: hardware-independent pan/tilt motion core.
+// lynx motion core: hardware-independent pan/tilt motion.
 // No Arduino dependencies: compiled for the XIAO and for native unit tests.
 #pragma once
 #include <stdint.h>

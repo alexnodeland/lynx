@@ -1,32 +1,38 @@
 // SPDX-License-Identifier: MIT
-// lynx-motion: pan/tilt servo control for the XIAO ESP32-S3 Sense.
-// Hardware glue only; motion logic lives in lib/motion (unit-tested natively).
+// lynx firmware: pan/tilt servos, camera, and the LAN control layer (REST, MCP, MJPEG stream)
+// for the XIAO ESP32-S3 Sense. Hardware glue only; motion, MCP and auth logic live in lib/
+// (unit-tested natively).
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <ESP32Servo.h>
-#include <WebServer.h>
 #include <WiFi.h>
+#include <freertos/semphr.h>
 
-#include "motion.h"
-#include "page.h"
-#include "settings.h"
+#include "app.h"
+#include "camera.h"
+#include "net.h"
+#include "web.h"
 
 using namespace lynx;
+
+namespace lynx {
+Settings settings;
+Motion motion;
+static SemaphoreHandle_t motionMutex;
+void lockBegin() { motionMutex = xSemaphoreCreateRecursiveMutex(); }
+MotionLock::MotionLock() { xSemaphoreTakeRecursive(motionMutex, portMAX_DELAY); }
+MotionLock::~MotionLock() { xSemaphoreGiveRecursive(motionMutex); }
+}  // namespace lynx
 
 static const int kPin[AXIS_COUNT] = {D0, D1};  // pan, tilt
 static const char* kName[AXIS_COUNT] = {"pan", "tilt"};
 static const float kMechLimit[AXIS_COUNT] = {90.f, 60.f};  // validated in CAD
-static const uint32_t kStaConnectTimeoutMs = 15000;
 
-static Settings settings;
-static Motion motion;
 static Servo servo[AXIS_COUNT];
 static bool servoAttached[AXIS_COUNT] = {false, false};
 static int lastUs[AXIS_COUNT] = {-1, -1};
-static WebServer http(80);
-static bool apStarted = false;
-static uint32_t staStartedMs = 0;
 static String line;
+static String cameraError;
 
 // ---------- hardware ----------
 
@@ -64,28 +70,89 @@ static void refresh() {
 
 // ---------- status ----------
 
-static void statusJson(JsonDocument& j) {
-  for (int i = 0; i < AXIS_COUNT; i++) {
-    const AxisMotion& ax = motion.axis((Axis)i);
-    JsonObject o = j[kName[i]].to<JsonObject>();
-    o["pos"] = ax.position();
-    o["target"] = ax.target();
-    o["us"] = (int)lroundf(ax.pulseUs());
-    o["moving"] = ax.moving();
-    o["attached"] = ax.attached();
-    o["min"] = ax.cal().minDeg;
-    o["max"] = ax.cal().maxDeg;
-    o["trim"] = ax.cal().trimUs;
-    o["usPerDeg"] = ax.cal().usPerDeg;
-    o["invert"] = ax.cal().invert;
+namespace lynx {
+
+void statusJson(JsonObject j) {
+  {
+    MotionLock l;
+    for (int i = 0; i < AXIS_COUNT; i++) {
+      const AxisMotion& ax = motion.axis((Axis)i);
+      JsonObject o = j[kName[i]].to<JsonObject>();
+      o["pos"] = ax.position();
+      o["target"] = ax.target();
+      o["us"] = (int)lroundf(ax.pulseUs());
+      o["moving"] = ax.moving();
+      o["attached"] = ax.attached();
+      o["min"] = ax.cal().minDeg;
+      o["max"] = ax.cal().maxDeg;
+      o["trim"] = ax.cal().trimUs;
+      o["usPerDeg"] = ax.cal().usPerDeg;
+      o["invert"] = ax.cal().invert;
+    }
+    j["sweeping"] = motion.sweeping();
   }
-  j["sweeping"] = motion.sweeping();
+  j["restTilt"] = Motion::kRestTiltDeg;
   j["idleMs"] = settings.motion.idleDetachMs;
   j["maxSpeed"] = settings.motion.maxSpeedDegPerS;
-  j["wifi"] = WiFi.status() == WL_CONNECTED ? "sta" : (apStarted ? "ap" : "off");
-  j["ip"] = WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
+  cameraJson(j["camera"].to<JsonObject>());
+  JsonObject n = j["network"].to<JsonObject>();
+  n["name"] = hostName();
+  n["mdns"] = mdnsName();
+  n["ip"] = staIp();
+  n["wifi"] = wifiState();
+  n["rssi"] = WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0;
+  n["setupHotspot"] = setupMode();
+  j["version"] = kVersion;
   j["uptimeMs"] = millis();
+  j["freeHeap"] = ESP.getFreeHeap();
+  j["freePsram"] = ESP.getFreePsram();
 }
+
+void cameraJson(JsonObject o) {
+  o["ready"] = cameraReady();
+  if (!cameraReady()) o["error"] = cameraError;
+  o["framesize"] = framesizeName(settings.camera.framesize);
+  o["quality"] = settings.camera.quality;
+  o["vflip"] = settings.camera.vflip;
+  o["hmirror"] = settings.camera.hmirror;
+  o["brightness"] = settings.camera.brightness;
+}
+
+bool applyCameraJson(JsonObjectConst in, std::string& error) {
+  CameraSettings c = settings.camera;
+  if (!in["framesize"].isNull()) {
+    int fs = framesizeFromName(in["framesize"].as<const char*>());
+    if (fs < 0) {
+      error = "framesize must be one of QVGA, VGA, SVGA, XGA, HD, SXGA, UXGA";
+      return false;
+    }
+    c.framesize = fs;
+  }
+  if (!in["quality"].isNull()) {
+    int q = in["quality"].as<int>();
+    if (q < 4 || q > 63) {
+      error = "quality must be 4..63 (lower is better)";
+      return false;
+    }
+    c.quality = q;
+  }
+  if (!in["brightness"].isNull()) {
+    int b = in["brightness"].as<int>();
+    if (b < -2 || b > 2) {
+      error = "brightness must be -2..2";
+      return false;
+    }
+    c.brightness = b;
+  }
+  if (!in["vflip"].isNull()) c.vflip = in["vflip"].as<bool>();
+  if (!in["hmirror"].isNull()) c.hmirror = in["hmirror"].as<bool>();
+  settings.camera = c;
+  cameraApply(c);
+  saveCamera(c);
+  return true;
+}
+
+}  // namespace lynx
 
 // ---------- serial commands ----------
 
@@ -97,7 +164,7 @@ static int parseAxis(const String& s) {
 
 static void printHelp() {
   Serial.println(F(
-      "lynx-motion commands:\n"
+      "lynx commands:\n"
       "  pan <deg>                 move pan (tilt unchanged)\n"
       "  tilt <deg>                move tilt (pan unchanged)\n"
       "  look <pan> <tilt> [ms]    move both, optional duration\n"
@@ -111,6 +178,10 @@ static void printHelp() {
       "  speed <deg/s>             max angular speed\n"
       "  idle <ms>                 detach PWM after idle (0 = never)\n"
       "  wifi <ssid> <pass>        save Wi-Fi credentials and reconnect\n"
+      "  setup                     reopen the setup hotspot for 10 minutes\n"
+      "  token                     print the API token\n"
+      "  token new                 mint a new API token (old one stops working)\n"
+      "  info                      name, address, version\n"
       "  save                      persist calibration/limits to NVS\n"
       "  status                    print JSON status\n"
       "  help"));
@@ -131,6 +202,7 @@ static void handleCommand(String cmd) {
   String c = tok[0];
   c.toLowerCase();
   uint32_t now = millis();
+  MotionLock lock;  // the HTTP tasks touch motion too
 
   if (c == "help" || c == "?") {
     printHelp();
@@ -186,20 +258,26 @@ static void handleCommand(String cmd) {
     Serial.println("saved");
   } else if (c == "status") {
     JsonDocument j;
-    statusJson(j);
+    statusJson(j.to<JsonObject>());
     serializeJson(j, Serial);
     Serial.println();
   } else if (c == "wifi" && n >= 2) {
     int p = cmd.indexOf(tok[1]) + tok[1].length();
     String pass = cmd.substring(p);
     pass.trim();
-    settings.ssid = tok[1];
-    settings.pass = pass;
-    saveWifi(settings.ssid, settings.pass);
-    Serial.printf("wifi saved, connecting to '%s'\n", settings.ssid.c_str());
-    WiFi.disconnect();
-    WiFi.begin(settings.ssid.c_str(), settings.pass.c_str());
-    staStartedMs = millis();
+    joinWifi(tok[1], pass);
+  } else if (c == "setup") {
+    enterSetupMode(0);
+  } else if (c == "token" && n >= 2 && tok[1] == "new") {
+    settings.token = newToken();
+    saveToken(settings.token);
+    Serial.printf("new token: %s\n", settings.token.c_str());
+  } else if (c == "token") {
+    Serial.printf("token: %s\n", settings.token.c_str());
+  } else if (c == "info") {
+    Serial.printf("lynx %s  %s  http://%s/  ip %s  wifi %s%s\n", kVersion, hostName().c_str(), mdnsName().c_str(),
+                  staIp().length() ? staIp().c_str() : "-", wifiState(), setupMode() ? "  (setup hotspot up)" : "");
+    if (!cameraReady()) Serial.printf("camera: %s\n", cameraError.c_str());
   } else {
     Serial.printf("? unknown or incomplete: '%s' (try help)\n", cmd.c_str());
   }
@@ -217,87 +295,32 @@ static void pollSerial() {
   }
 }
 
-// ---------- HTTP ----------
-
-static void sendStatus() {
-  JsonDocument j;
-  statusJson(j);
-  String out;
-  serializeJson(j, out);
-  http.send(200, "application/json", out);
-}
-
-static void setupHttp() {
-  http.on("/", HTTP_GET, [] { http.send_P(200, "text/html", kIndexHtml); });
-  http.on("/api/status", HTTP_GET, sendStatus);
-  http.on("/api/look", HTTP_POST, [] {
-    JsonDocument b;
-    if (deserializeJson(b, http.arg("plain"))) {
-      http.send(400, "application/json", "{\"error\":\"bad json\"}");
-      return;
-    }
-    float p = b["pan"] | motion.axis(PAN).target();
-    float t = b["tilt"] | motion.axis(TILT).target();
-    int32_t ms = b["ms"] | -1;
-    motion.look(p, t, ms, millis());
-    sendStatus();
-  });
-  http.on("/api/center", HTTP_POST, [] {
-    motion.center(millis());
-    sendStatus();
-  });
-  http.on("/api/sweep", HTTP_POST, [] {
-    motion.startSweep(millis());
-    sendStatus();
-  });
-  http.onNotFound([] { http.send(404, "application/json", "{\"error\":\"not found\"}"); });
-  http.begin();
-}
-
-static void startAp() {
-  if (apStarted) return;
-  WiFi.mode(settings.ssid.length() ? WIFI_AP_STA : WIFI_AP);
-  WiFi.softAP("lynx-setup");  // open AP; set credentials via serial `wifi`
-  apStarted = true;
-  Serial.printf("SoftAP lynx-setup at %s\n", WiFi.softAPIP().toString().c_str());
-}
-
-static void pollWifi() {
-  static wl_status_t last = WL_IDLE_STATUS;
-  wl_status_t s = WiFi.status();
-  if (s != last) {
-    last = s;
-    if (s == WL_CONNECTED) Serial.printf("wifi connected: http://%s/\n", WiFi.localIP().toString().c_str());
-  }
-  if (s != WL_CONNECTED && !apStarted && millis() - staStartedMs > kStaConnectTimeoutMs) startAp();
-}
-
 // ---------- entry points ----------
 
 void setup() {
   Serial.begin(115200);
+  lockBegin();
+  // servos own LEDC timers 0-1; the camera clock is on timer 3 (camera.cpp)
   ESP32PWM::allocateTimer(0);
   ESP32PWM::allocateTimer(1);
   loadSettings(settings);
   motion.begin(settings.cal[PAN], settings.cal[TILT], settings.motion, millis());
+  motion.center(millis());  // boot into the rest pose
 
-  WiFi.setHostname("lynx");
-  if (settings.ssid.length()) {
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(settings.ssid.c_str(), settings.pass.c_str());
-    staStartedMs = millis();
-  } else {
-    startAp();
-  }
-  setupHttp();
-  Serial.println("lynx-motion ready (type 'help')");
+  if (!cameraBegin(settings.camera, cameraError)) Serial.printf("camera: %s\n", cameraError.c_str());
+  netBegin();
+  webBegin();
+  Serial.printf("lynx %s ready as %s (type 'help')\n", kVersion, hostName().c_str());
 }
 
 void loop() {
   uint32_t now = millis();
   pollSerial();
-  http.handleClient();
-  pollWifi();
-  motion.update(now);
-  driveServos();
+  netLoop();
+  {
+    MotionLock l;
+    motion.update(now);
+    driveServos();
+  }
+  delay(2);
 }

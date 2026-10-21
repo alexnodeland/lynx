@@ -1,0 +1,103 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flash lynx</title>
+  <meta name="description" content="Install the lynx firmware on a Seeed XIAO ESP32-S3 Sense from your browser." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%237fd6a4' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%237fd6a4'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="module" src="https://unpkg.com/esp-web-tools@10.2.1/dist/web/install-button.js?module"></script>
+  <style>
+    :root { --bg: #0b0c0f; --ink: #f3f1ec; --muted: #a9a8a3; --dim: #6d6c69; --accent: #7fd6a4; --edge: rgba(255,255,255,.08);
+      --glass: rgba(20, 21, 25, .7); --ease: cubic-bezier(.2,.7,.2,1); }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(1200px 700px at 70% -10%, #1d2a23 0%, transparent 60%), var(--bg);
+      color: var(--ink); font: 16px/1.55 "Inter Tight", system-ui, sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 32px 16px 80px; }
+    a { color: var(--accent); }
+    .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 56px; }
+    .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 20px; letter-spacing: -.02em; }
+    .brand svg { width: 22px; height: 22px; fill: none; stroke: var(--accent); stroke-width: 3; }
+    .brand .pupil { fill: var(--accent); stroke: none; }
+    .eyebrow { font: 500 12px "JetBrains Mono", monospace; letter-spacing: .2em; text-transform: uppercase; color: var(--accent); margin: 0 0 12px; }
+    h1 { font-size: clamp(34px, 6vw, 52px); line-height: 1; letter-spacing: -.045em; margin: 0 0 16px; }
+    h2 { font-size: 18px; margin: 0 0 10px; letter-spacing: -.01em; }
+    p { color: var(--muted); margin: 0 0 14px; }
+    .card { position: relative; border-radius: 18px; padding: 24px; margin: 0 0 18px;
+      background: linear-gradient(155deg, rgba(255,255,255,.08), rgba(255,255,255,.015) 40%, rgba(0,0,0,.1)), var(--glass);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.2), inset 0 -1px 0 rgba(0,0,0,.4), 0 24px 50px -24px rgba(0,0,0,.7), 0 0 0 1px var(--edge); }
+    ol { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 14px; }
+    ol li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; color: var(--muted); }
+    ol li::before { content: counter(s, decimal-leading-zero); font: 500 12px "JetBrains Mono", monospace; color: var(--accent); padding-top: 3px; }
+    ol b { color: var(--ink); font-weight: 600; }
+    .install { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 22px 0 6px; }
+    .key { appearance: none; border: 0; cursor: pointer; font: 600 15px "Inter Tight", sans-serif; color: var(--ink); padding: 14px 24px; border-radius: 14px;
+      background: radial-gradient(160px 80px at 30% 0%, rgba(190,255,215,.2), transparent 70%),
+        linear-gradient(160deg, rgba(127,214,164,.34), rgba(127,214,164,.1) 50%, rgba(0,0,0,.12)), rgba(18,34,26,.6);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.3), inset 0 -1px 0 rgba(0,0,0,.4), 0 3px 0 rgba(0,0,0,.22), 0 18px 34px -10px rgba(0,0,0,.7), 0 0 0 1px var(--edge);
+      transform: translateY(-3px); transition: transform .16s var(--ease); }
+    .key:hover { transform: translateY(-5px); }
+    .key:active { transform: translateY(0); }
+    .note { font-size: 13.5px; color: var(--dim); }
+    .warn { color: #ffb4a6; }
+    code { font: 13px "JetBrains Mono", monospace; background: rgba(0,0,0,.35); padding: 2px 6px; border-radius: 6px; color: #e6e3db; }
+    pre { font: 12.5px/1.6 "JetBrains Mono", monospace; background: rgba(0,0,0,.4); border-radius: 12px; padding: 14px; overflow-x: auto; color: #e6e3db; margin: 0 0 12px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    .grid div { padding: 14px; border-radius: 12px; background: rgba(0,0,0,.22); box-shadow: 0 0 0 1px var(--edge); }
+    .grid b { display: block; font-size: 14px; margin-bottom: 4px; }
+    .grid span { font-size: 13.5px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <a class="brand" href="./"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" /><circle class="pupil" cx="16" cy="16" r="4" /></svg>lynx</a>
+      <span class="mono note">firmware 0.3.0</span>
+    </header>
+
+    <p class="eyebrow">install</p>
+    <h1>Flash lynx from your browser.</h1>
+    <p>One click puts the lynx firmware on a Seeed XIAO ESP32-S3 Sense: servos, camera, and a control layer you reach over your network by HTTP or MCP.</p>
+
+    <section class="card">
+      <ol>
+        <li><span><b>Plug the XIAO into this computer</b> with a USB-C cable that carries data. A bare board, or the assembled lynx through its base port.</span></li>
+        <li><span><b>Click Install</b> and pick the port named <code>USB JTAG/serial</code> or <code>ESP32-S3</code>. Choose <b>Erase</b> on a first install.</span></li>
+        <li><span><b>Join the <code>lynx-xxxx</code> Wi-Fi hotspot</b> from your phone when flashing finishes. The setup page opens by itself: pick your network and save the device token it shows you.</span></li>
+      </ol>
+      <div class="install">
+        <esp-web-install-button manifest="./flash/manifest.json">
+          <button slot="activate" class="key">Install lynx</button>
+          <span slot="unsupported" class="warn">This browser can't reach USB devices. Use Chrome or Edge on a desktop.</span>
+          <span slot="not-allowed" class="warn">USB access needs a secure page (https).</span>
+        </esp-web-install-button>
+        <span class="note">No port in the list? Hold the board's BOOT button while plugging it in, then try again.</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>What you get</h2>
+      <div class="grid">
+        <div><b>Setup hotspot</b><span>First boot opens <code>lynx-xxxx</code> with a setup page. Hold BOOT 3 s to bring it back later.</span></div>
+        <div><b>HTTP API</b><span>Position, rest pose, sweep, camera settings and snapshots at <code>lynx-xxxx.local</code>.</span></div>
+        <div><b>MCP</b><span>AI agents control it at <code>/mcp</code>: look, center, sweep, snapshot, stream URL.</span></div>
+        <div><b>Live video</b><span>MJPEG on port 81, which browsers, VLC, ffmpeg and Home Assistant all read.</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Prefer the command line?</h2>
+      <pre>git clone https://github.com/alexnodeland/lynx
+cd lynx/firmware/lynx
+pio run -e xiao -t upload
+pio device monitor        # type 'info' or 'token'</pre>
+      <p class="note">Every call needs the per-device token, shown on the setup page and by the <code>token</code> serial command. Source and API reference: <a href="https://github.com/alexnodeland/lynx/tree/main/firmware/lynx">firmware/lynx</a>.</p>
+    </section>
+  </main>
+</body>
+</html>
