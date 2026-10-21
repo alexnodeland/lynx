@@ -67,9 +67,7 @@ body { overflow-x: hidden; -webkit-font-smoothing: antialiased; }
 .brand svg { width: 22px; height: 22px; }
 .brand circle { fill: none; stroke: var(--ink); stroke-width: 2.4; }
 .brand .pupil { fill: var(--accent); stroke: none; transition: transform .3s var(--ease); transform-origin: center; }
-.hud nav { display: flex; gap: 26px; align-items: center; }
-.hud nav > a:not(.key) { color: var(--muted); text-decoration: none; font-size: 14px; transition: color .2s; }
-.hud nav > a:not(.key):hover { color: var(--ink); }
+.hud nav { display: flex; align-items: center; }
 
 /* ---------------------------------------------------------------- chapter rail (a focus scale) */
 #rail { position: fixed; left: 50%; bottom: clamp(52px, 6vw, 70px); transform: translateX(-50%); z-index: 16; display: flex; gap: 30px;
@@ -129,28 +127,39 @@ body { overflow-x: hidden; -webkit-font-smoothing: antialiased; }
 .steps li.now { transform: translateX(6px); }
 
 /* ---------------------------------------------------------------- keycaps: depth, side walls, press */
-.key { --rx: 0deg; --ry: 0deg; --h: 7px; position: relative; display: inline-block; text-decoration: none; color: var(--ink);
+/* buttons: the same glass as the slabs — tinted, blurred, lit rim, cursor sheen — lifted off the scene */
+.key { --rx: 0deg; --ry: 0deg; --mx: 50%; --my: 0%; position: relative; display: inline-block; text-decoration: none; color: var(--ink);
   transform: perspective(700px) rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .35s var(--ease); }
-.key .cap { position: relative; display: grid; gap: 3px; padding: 15px 22px 14px; min-width: 210px; border-radius: 13px;
-  transform: translateY(calc(var(--h) * -1)); transition: transform .14s var(--ease), box-shadow .14s var(--ease), background .3s;
-  background: linear-gradient(180deg, #2b2c31, #1b1c20);
+.key .cap { position: relative; display: grid; gap: 3px; padding: 15px 22px 14px; min-width: 210px; border-radius: 14px;
+  transform: translateY(-3px); transition: transform .16s var(--ease), box-shadow .2s var(--ease), background .3s;
+  background:
+    radial-gradient(180px 90px at var(--mx) var(--my), rgba(255,255,255,.14), transparent 70%),
+    linear-gradient(160deg, rgba(255,255,255,.11), rgba(255,255,255,.02) 45%, rgba(0,0,0,.10)),
+    var(--glass);
+  backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.16), inset 0 -2px 4px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.05),
-    0 1px 0 #101114, 0 2px 0 #0f1013, 0 3px 0 #0e0f12, 0 4px 0 #0d0e11, 0 5px 0 #0c0d10, 0 6px 0 #0b0c0f, 0 7px 0 #0a0b0e,
-    0 16px 30px -6px rgba(0,0,0,.7); }
+    inset 0 1px 0 rgba(255,255,255,.26), inset 0 -1px 0 rgba(0,0,0,.4),
+    0 3px 0 rgba(0,0,0,.22), 0 18px 34px -10px rgba(0,0,0,.7), 0 0 0 1px var(--edge); }
+.key .cap::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px;
+  background: linear-gradient(140deg, rgba(255,255,255,.42), transparent 35%, transparent 70%, rgba(127,214,164,.22));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 .key .cap::before { content: ""; position: absolute; left: 14px; top: 13px; width: 6px; height: 6px; border-radius: 50%;
-  background: #333; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); transition: background .3s, box-shadow .3s; }
+  background: rgba(255,255,255,.18); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); transition: background .3s, box-shadow .3s; }
 .key b { font-weight: 600; font-size: 15px; padding-left: 16px; letter-spacing: -0.01em; }
-.key small { font-size: 10.5px; color: var(--dim); padding-left: 16px; letter-spacing: .06em; }
+.key small { font-size: 10.5px; color: var(--muted); padding-left: 16px; letter-spacing: .06em; }
+.key:hover .cap { transform: translateY(-5px); box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.32), inset 0 -1px 0 rgba(0,0,0,.4),
+    0 5px 0 rgba(0,0,0,.18), 0 24px 40px -10px rgba(0,0,0,.75), 0 0 0 1px rgba(255,255,255,.14); }
 .key:hover .cap::before { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
-.key:active .cap { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 3px rgba(0,0,0,.4),
-  0 1px 0 #0d0e11, 0 6px 14px -6px rgba(0,0,0,.7); }
-.key.accent .cap { background: linear-gradient(180deg, #2f4a3b, #1d2e25); }
+.key:active .cap { transform: translateY(0); transition-duration: .06s; box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.18), inset 0 -1px 0 rgba(0,0,0,.4), 0 6px 14px -6px rgba(0,0,0,.7), 0 0 0 1px var(--edge); }
+.key.accent .cap { background:
+    radial-gradient(180px 90px at var(--mx) var(--my), rgba(190,255,215,.18), transparent 70%),
+    linear-gradient(160deg, rgba(127,214,164,.30), rgba(127,214,164,.08) 50%, rgba(0,0,0,.12)),
+    rgba(18, 34, 26, .55); }
 .key.accent .cap::before { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
-.key.small { --h: 4px; }
-.key.small .cap { min-width: 0; padding: 8px 16px 7px; border-radius: 10px; font-size: 13.5px; font-weight: 600;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), inset 0 0 0 1px rgba(255,255,255,.05),
-  0 1px 0 #101114, 0 2px 0 #0e0f12, 0 3px 0 #0c0d10, 0 4px 0 #0a0b0e, 0 10px 20px -6px rgba(0,0,0,.6); }
+.key.small .cap { min-width: 0; padding: 8px 16px 7px; border-radius: 11px; font-size: 13.5px; font-weight: 600; transform: translateY(-2px); }
+.key.small:hover .cap { transform: translateY(-3px); }
 .key.small .cap::before { display: none; }
 
 /* ---------------------------------------------------------------- CTA beat: product stays clear */
