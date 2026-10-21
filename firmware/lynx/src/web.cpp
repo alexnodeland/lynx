@@ -144,6 +144,7 @@ static esp_err_t rootHandler(httpd_req_t* r) { return sendPage(r, viaSetupAp(r) 
 static esp_err_t infoHandler(httpd_req_t* r) {
   JsonDocument d;
   d["name"] = hostName();
+  d["id"] = deviceId();
   d["product"] = "lynx";
   d["version"] = kVersion;
   d["mdns"] = mdnsName();

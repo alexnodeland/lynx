@@ -19,9 +19,11 @@ Every API call needs a per-device token.
 **Install from a browser:** [alexnodeland.github.io/lynx/flash.html](https://alexnodeland.github.io/lynx/flash.html)
 (Chrome or Edge, USB-C). Or build it yourself, below.
 
-> **Status:** the firmware compiles, and its logic (motion, MCP, auth: 30 native tests) passes in CI.
-> It has **not yet run on a board**. Work through the [bring-up checklist](#bring-up-checklist)
-> on first hardware.
+> **Status:** first bring-up on a XIAO ESP32-S3 Sense done on 2026-10-20 (no servos attached).
+> These are verified: boot, camera and PSRAM, the captive setup page popping up on a phone, the join,
+> mDNS from macOS, the hotspot closing, REST, MCP (both protocol generations, the Origin guard,
+> token checks, snapshot images) and the MJPEG stream. Still open: servos under load, brownout,
+> `claude mcp add` end to end, and the web flasher. 39 native tests (motion, MCP, auth, network plan) run in CI.
 
 ## How it fits together
 
@@ -125,13 +127,14 @@ Pure logic lives in `lib/`. It has no Arduino includes, builds for the board and
 | `lib/mcp/` | stateless MCP server (tools only) over a `Device` interface |
 | `lib/auth/` | token generation and constant-time check, Bearer / `?token=` parsing, Origin guard |
 | `src/main.cpp` | servo PWM, serial console, status JSON, the motion lock |
-| `src/net.*` | setup hotspot + captive DNS, station mode, mDNS, BOOT-button re-entry |
+| `lib/netplan/` | when the setup hotspot opens and closes, and the join state: pure rules, unit-tested |
+| `src/net.*` | carries out the netplan: hotspot + captive DNS, station mode, mDNS (with IPv6), BOOT button |
 | `src/web.*` | `esp_http_server`: port 80 (pages, REST, MCP, snapshot), port 81 (stream) |
 | `src/camera.*` | esp32-camera on the XIAO Sense pins |
 | `src/pages.h` | setup page, dashboard, shared CSS (no external assets) |
 | `src/settings.*` | NVS (Preferences, namespace `lynx`): calibration, Wi-Fi, token, camera |
 | `tools/merge_bin.py` | post-build: `lynx.bin`, one image to flash at 0x0 (used by the web flasher) |
-| `test/` | Unity tests: `test_motion`, `test_mcp`, `test_auth` |
+| `test/` | Unity tests: `test_motion`, `test_mcp`, `test_auth`, `test_netplan` |
 
 The HTTP servers run in their own FreeRTOS tasks, so every touch of the motion
 core goes through a recursive mutex (`MotionLock`). The stream gets its own server
@@ -274,6 +277,17 @@ Any other client takes the same URL and header, e.g.
 `{"mcpServers":{"lynx":{"type":"http","url":"http://lynx-1a2b.local/mcp","headers":{"Authorization":"Bearer …"}}}}`.
 The dashboard prints both with your token filled in.
 
+### Lessons from bring-up
+
+- **mDNS stalled for 5 s on macOS/iOS.** They ask for an IPv6 address first, and a v4-only ESP32 never
+  answers. The firmware now enables an IPv6 link-local address on the station, and lookups take ~5 ms.
+- **The setup hotspot stayed open after joining.** The open/close rules moved into `lib/netplan` with
+  explicit timestamps instead of a sentinel, and are now unit-tested over the real sequences:
+  fresh setup, a failed first attempt, the router coming back, BOOT re-entry, link drops, millis wrap.
+  Hardware confirmed the close.
+- A first boot used to log one `NOT_FOUND` line per missing setting. Reads now check the key first.
+- Every frame black = a dark room, not a fault: the sensor's auto-exposure is fine once there's light.
+
 ## Security model
 
 - **Token:** 128 random bits from the hardware RNG, minted on first boot and kept in NVS.
@@ -289,18 +303,17 @@ The dashboard prints both with your token filled in.
 
 ## Bring-up checklist
 
-None of these can be checked off the board. Work through them on first hardware and
-note the results in the repo:
+None of these can be checked off the board. ✅ = verified at first bring-up (2026-10-20).
 
-1. **Boot log:** `pio device monitor` prints `lynx 0.3.0 ready as lynx-xxxx` and no `camera:` error.
+1. ✅ **Boot log:** `pio device monitor` prints `lynx 0.3.0 ready as lynx-xxxx` and no `camera:` error.
    `info` → camera ready. `status` → `freePsram` is several MB (PSRAM is detected).
 2. **Servos and camera together:** `sweep` while `/stream` is open. Both keep working, with no
    jitter (LEDC timers don't collide) and no resets.
 3. **Brownout:** move hard (`look 88 58`, `look -88 -58`) while streaming at UXGA on your USB
    supply. Watch for `Brownout detector` resets. If any, use a 2 A supply or a shorter cable.
-4. **Captive portal:** on iOS and Android, joining `lynx-xxxx` pops the setup page by itself.
-5. **mDNS:** `ping lynx-xxxx.local` resolves from macOS, Windows and Linux (Android may need the IP).
-6. **Hotspot closes** about 3 minutes after joining, and reopens with BOOT held for 3 s.
+4. ✅ (one phone) **Captive portal:** on iOS and Android, joining `lynx-xxxx` pops the setup page by itself.
+5. ✅ (macOS) **mDNS:** `ping lynx-xxxx.local` resolves from macOS, Windows and Linux (Android may need the IP).
+6. ✅ **Hotspot closes** about 3 minutes after joining, and reopens with BOOT held for 3 s.
 7. **MCP:** `claude mcp add …` as above, then ask the agent to "look left and take a snapshot".
 8. **Stream:** a second viewer gets `503`; the first keeps streaming; snapshots still work.
 9. **Orientation:** if the image is upside down, `POST /api/camera {"vflip":true}` (or `hmirror`).

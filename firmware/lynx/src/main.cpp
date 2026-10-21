@@ -97,11 +97,13 @@ void statusJson(JsonObject j) {
   cameraJson(j["camera"].to<JsonObject>());
   JsonObject n = j["network"].to<JsonObject>();
   n["name"] = hostName();
+  n["id"] = deviceId();
   n["mdns"] = mdnsName();
   n["ip"] = staIp();
   n["wifi"] = wifiState();
   n["rssi"] = WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0;
   n["setupHotspot"] = setupMode();
+  if (setupMode()) n["setupClosesInMs"] = setupClosesInMs();
   j["version"] = kVersion;
   j["uptimeMs"] = millis();
   j["freeHeap"] = ESP.getFreeHeap();
@@ -178,7 +180,7 @@ static void printHelp() {
       "  speed <deg/s>             max angular speed\n"
       "  idle <ms>                 detach PWM after idle (0 = never)\n"
       "  wifi <ssid> <pass>        save Wi-Fi credentials and reconnect\n"
-      "  setup                     reopen the setup hotspot for 10 minutes\n"
+      "  setup [s]                 reopen the setup hotspot (default 10 minutes)\n"
       "  token                     print the API token\n"
       "  token new                 mint a new API token (old one stops working)\n"
       "  info                      name, address, version\n"
@@ -267,7 +269,7 @@ static void handleCommand(String cmd) {
     pass.trim();
     joinWifi(tok[1], pass);
   } else if (c == "setup") {
-    enterSetupMode(0);
+    enterSetupMode(n >= 2 ? (uint32_t)tok[1].toInt() * 1000 : 0);
   } else if (c == "token" && n >= 2 && tok[1] == "new") {
     settings.token = newToken();
     saveToken(settings.token);

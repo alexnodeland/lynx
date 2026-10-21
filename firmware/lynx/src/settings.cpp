@@ -13,6 +13,13 @@ static const char* kAxisKey[AXIS_COUNT] = {"p", "t"};
 
 static String k(Axis a, const char* f) { return String(kAxisKey[a]) + f; }
 
+// Preferences logs an error for every missing key; on a fresh board that is all of them.
+static float getF(Preferences& p, const char* key, float d) { return p.isKey(key) ? p.getFloat(key, d) : d; }
+static bool getB(Preferences& p, const char* key, bool d) { return p.isKey(key) ? p.getBool(key, d) : d; }
+static int getI(Preferences& p, const char* key, int d) { return p.isKey(key) ? p.getInt(key, d) : d; }
+static uint32_t getU(Preferences& p, const char* key, uint32_t d) { return p.isKey(key) ? p.getUInt(key, d) : d; }
+static String getS(Preferences& p, const char* key) { return p.isKey(key) ? p.getString(key, "") : String(); }
+
 void loadSettings(Settings& s) {
   Preferences p;
   p.begin(kNs, true);
@@ -20,26 +27,26 @@ void loadSettings(Settings& s) {
     Axis a = (Axis)i;
     AxisCal d = defaultAxisCal(a);
     AxisCal& c = s.cal[i];
-    c.minDeg = p.getFloat(k(a, "min").c_str(), d.minDeg);
-    c.maxDeg = p.getFloat(k(a, "max").c_str(), d.maxDeg);
-    c.trimUs = p.getFloat(k(a, "trim").c_str(), d.trimUs);
-    c.usPerDeg = p.getFloat(k(a, "upd").c_str(), d.usPerDeg);
-    c.invert = p.getBool(k(a, "inv").c_str(), d.invert);
-    c.minUs = p.getFloat(k(a, "minus").c_str(), d.minUs);
-    c.maxUs = p.getFloat(k(a, "maxus").c_str(), d.maxUs);
+    c.minDeg = getF(p, k(a, "min").c_str(), d.minDeg);
+    c.maxDeg = getF(p, k(a, "max").c_str(), d.maxDeg);
+    c.trimUs = getF(p, k(a, "trim").c_str(), d.trimUs);
+    c.usPerDeg = getF(p, k(a, "upd").c_str(), d.usPerDeg);
+    c.invert = getB(p, k(a, "inv").c_str(), d.invert);
+    c.minUs = getF(p, k(a, "minus").c_str(), d.minUs);
+    c.maxUs = getF(p, k(a, "maxus").c_str(), d.maxUs);
   }
   MotionConfig m = defaultMotionConfig();
   s.motion = m;
-  s.motion.maxSpeedDegPerS = p.getFloat("speed", m.maxSpeedDegPerS);
-  s.motion.idleDetachMs = p.getUInt("idle", m.idleDetachMs);
-  s.ssid = p.getString("ssid", "");
-  s.pass = p.getString("pass", "");
-  s.token = p.getString("token", "");
-  s.camera.framesize = p.getInt("cfs", s.camera.framesize);
-  s.camera.quality = p.getInt("cq", s.camera.quality);
-  s.camera.vflip = p.getBool("cvf", s.camera.vflip);
-  s.camera.hmirror = p.getBool("chm", s.camera.hmirror);
-  s.camera.brightness = p.getInt("cbr", s.camera.brightness);
+  s.motion.maxSpeedDegPerS = getF(p, "speed", m.maxSpeedDegPerS);
+  s.motion.idleDetachMs = getU(p, "idle", m.idleDetachMs);
+  s.ssid = getS(p, "ssid");
+  s.pass = getS(p, "pass");
+  s.token = getS(p, "token");
+  s.camera.framesize = getI(p, "cfs", s.camera.framesize);
+  s.camera.quality = getI(p, "cq", s.camera.quality);
+  s.camera.vflip = getB(p, "cvf", s.camera.vflip);
+  s.camera.hmirror = getB(p, "chm", s.camera.hmirror);
+  s.camera.brightness = getI(p, "cbr", s.camera.brightness);
   p.end();
   if (s.token.length() != 32) {
     s.token = newToken();
