@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.1 (2026-10-21)
 
 - **MCP docs for agents:** fuller `instructions`, a `guide` tool and `lynx://guide` resource (the manual),
   `lynx://status`, three prompts (`look_around`, `find`, `check`), a description on every argument, and
