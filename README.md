@@ -21,7 +21,7 @@
 
 An open-source pan/tilt camera built around the Seeed XIAO ESP32-S3 Sense. It has eight 3D-printed parts and two MG90S servos, runs on one USB-C cable, and is held together by one screw type (M2 × 8 thread-forming).
 
-**Site:** https://alexnodeland.github.io/lynx/
+**Site:** https://alexnodeland.github.io/lynx/ · **[Build guide (3D)](https://alexnodeland.github.io/lynx/build.html)** · **[Web flasher](https://alexnodeland.github.io/lynx/flash.html)** · **[Docs](docs/README.md)**
 
 | Path | Contents |
 |------|----------|
@@ -100,6 +100,9 @@ Print the three `test-*.stl` fit coupons first, then the eight parts in [`hardwa
 
 ### 2. Assemble
 
+The **[interactive build guide](https://alexnodeland.github.io/lynx/build.html)** walks all 13 steps in 3D:
+parts fly in, the rest of the camera stays ghosted, and you can orbit the model at every step. The same steps as text:
+
 Follow the ten steps in the [BOM's assembly section](hardware/production/BOM.md#assembly). Wire the servos as in [`hardware/electronics`](hardware/electronics) — carrier PCB or soldered harness, same nets.
 
 ### 3. Flash
@@ -133,6 +136,16 @@ cd web
 npm ci
 npm run dev
 ```
+
+## Develop
+
+```sh
+just setup   # once: PlatformIO + HA test harness in .venv, web deps, git hooks
+just check   # lint, 39 firmware tests, XIAO build, 20 Home Assistant tests, site build
+just         # every other recipe: fw-flash, fw-monitor, web-dev, hass-test, look, snap, mcp-add, release …
+```
+
+[Contributing](CONTRIBUTING.md) · [Architecture](docs/architecture.md) · [Troubleshooting](docs/troubleshooting.md) · [Changelog](CHANGELOG.md)
 
 ## Licences
 

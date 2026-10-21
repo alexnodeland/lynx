@@ -1,0 +1,25 @@
+name: Build report
+description: Tell us how your build went (fits, parts, printer, what you'd change)
+labels: [build-report]
+body:
+  - type: input
+    id: printer
+    attributes:
+      label: Printer and material
+      placeholder: "Bambu P1S, PETG, 0.2 mm"
+  - type: dropdown
+    id: coupons
+    attributes:
+      label: Test coupons
+      options: [all fit, boss too tight, boss too loose, lid corner off, USB-C opening off, didn't print them]
+  - type: input
+    id: servos
+    attributes:
+      label: Servos used
+      placeholder: "Waveshare 15024 MG90S"
+  - type: textarea
+    id: notes
+    attributes:
+      label: How it went
+      description: anything that didn't fit, took long, or the guide got wrong. Photos welcome.
+    validations: { required: true }

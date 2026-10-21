@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Build guide
+    url: https://alexnodeland.github.io/lynx/build.html
+    about: The step-by-step 3D guide
+  - name: Troubleshooting
+    url: https://github.com/alexnodeland/lynx/blob/main/docs/troubleshooting.md
+    about: Known problems and their fixes

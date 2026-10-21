@@ -1,0 +1,115 @@
+# SPDX-License-Identifier: MIT
+# lynx: every workflow from one place. `just` lists them; `just setup` once, then `just check`.
+
+set dotenv-load := true
+
+venv := ".venv"
+py := venv / "bin/python"
+pio := venv / "bin/pio"
+port := env("LYNX_PORT", "")            # serial port; auto-detected when empty
+host := env("LYNX_HOST", "lynx.local")  # your device, e.g. lynx-42e0.local
+fw := "firmware/lynx"
+
+# list the recipes
+default:
+    @just --list --unsorted
+
+# ---------------------------------------------------------------- setup
+
+# one-time: Python venv (PlatformIO + the Home Assistant test harness), web deps, git hooks
+setup:
+    python3.14 -m venv {{venv}}
+    {{py}} -m pip install -q --upgrade pip
+    {{py}} -m pip install -q platformio pre-commit ruff==0.17.1 \
+        pytest-homeassistant-custom-component==0.13.373 PyTurboJPEG==1.8.3 zeroconf==0.151.5
+    cd web && npm ci
+    {{venv}}/bin/pre-commit install
+    @echo "ready: try 'just check'"
+
+# ---------------------------------------------------------------- the whole gate
+
+# everything CI runs: lint, firmware tests + build, Home Assistant tests, site build
+check: lint fw-test fw-build hass-test web-build
+
+# ruff + pre-commit hooks over the whole tree
+lint:
+    {{venv}}/bin/pre-commit run --all-files
+
+# ---------------------------------------------------------------- firmware
+
+# native unit tests: motion, MCP, auth, network plan
+fw-test:
+    cd {{fw}} && ../../{{pio}} test -e native
+
+# build for the XIAO ESP32-S3 Sense (also writes .pio/build/xiao/lynx.bin for the web flasher)
+fw-build:
+    cd {{fw}} && ../../{{pio}} run -e xiao
+
+# build and flash over USB-C (LYNX_PORT=/dev/cu.usbmodem… to pick a port)
+fw-flash:
+    cd {{fw}} && ../../{{pio}} run -e xiao -t upload {{ if port != "" { "--upload-port " + port } else { "" } }}
+
+# serial console (type `help`, `info`, `token`)
+fw-monitor:
+    cd {{fw}} && ../../{{pio}} device monitor -b 115200 {{ if port != "" { "-p " + port } else { "" } }}
+
+# list serial ports, to find the board
+fw-ports:
+    {{pio}} device list --serial
+
+# ---------------------------------------------------------------- the device on your network
+
+# what the device says about itself (no token needed)
+info:
+    curl -s http://{{host}}/api/info | {{py}} -m json.tool
+
+# full status (needs LYNX_TOKEN)
+status:
+    curl -s -H "Authorization: Bearer $LYNX_TOKEN" http://{{host}}/api/status | {{py}} -m json.tool
+
+# move: just look 30 45
+look pan tilt:
+    curl -s -X POST -H "Authorization: Bearer $LYNX_TOKEN" http://{{host}}/api/position -d '{"pan":{{pan}},"tilt":{{tilt}}}' > /dev/null
+
+# save a snapshot to snapshot.jpg
+snap:
+    curl -s -H "Authorization: Bearer $LYNX_TOKEN" -o snapshot.jpg http://{{host}}/snapshot.jpg && echo snapshot.jpg
+
+# register the device as an MCP server in Claude Code
+mcp-add:
+    claude mcp add --transport http lynx http://{{host}}/mcp --header "Authorization: Bearer $LYNX_TOKEN"
+
+# ---------------------------------------------------------------- Home Assistant integration
+
+# config flow, entities, actions, camera, reauth, diagnostics
+hass-test:
+    {{py}} -m pytest -q
+
+# copy the integration into a Home Assistant config dir: just hass-install /path/to/config
+hass-install config:
+    mkdir -p {{config}}/custom_components
+    rsync -a --delete custom_components/lynx/ {{config}}/custom_components/lynx/
+    @echo "restart Home Assistant, then Settings › Devices & services"
+
+# ---------------------------------------------------------------- website (landing page, build guide, flasher)
+
+# dev server with hot reload
+web-dev:
+    cd web && npm run dev
+
+# production build (copies the firmware image in for the web flasher when it exists)
+web-build:
+    if [ -f {{fw}}/.pio/build/xiao/lynx.bin ]; then cp {{fw}}/.pio/build/xiao/lynx.bin web/public/flash/lynx.bin; fi
+    cd web && npm run build
+
+# serve the production build on :4317
+web-preview: web-build
+    cd web && npx vite preview --port 4317
+
+# ---------------------------------------------------------------- release
+
+# tag a release: CI builds the firmware and attaches lynx-vX.Y.Z.bin
+release version:
+    @grep -q '"{{version}}"' custom_components/lynx/manifest.json || (echo "bump versions first: firmware app.h, manifest.json, flash manifest" && exit 1)
+    git tag -a v{{version}} -m "lynx v{{version}}"
+    git push origin v{{version}}

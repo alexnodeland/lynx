@@ -1,0 +1,6 @@
+*.stl  binary linguist-generated
+*.step binary linguist-generated -diff
+*.glb  binary
+*.hdr  binary
+web/public/draco/** linguist-vendored
+hardware/production/** linguist-generated

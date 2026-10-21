@@ -22,8 +22,13 @@ npm run preview   # serve dist/
 
 | Path | Contents |
 |---|---|
-| `index.html` | page markup |
-| `src/main.js` | scene, camera rig, scroll timeline |
+| `index.html` | the landing page |
+| `build.html` | the 3D build guide |
+| `flash.html` | the web flasher (ESP Web Tools; CI builds `public/flash/lynx.bin` in) |
+| `src/stage.js` | the shared scene: renderer, light, set, product rig, cables, post-processing |
+| `src/guide.js` | the build guide's steps (what arrives, from where, what you need) |
+| `src/build.js` | the build guide: ghosts, fly-ins, framing, orbit, step rail, `#step` links |
+| `src/main.js` | the landing page: scroll timeline, shots, chrome |
 | `src/materials.js` | materials |
 | `src/style.css` | styles |
 | `public/assets/` | `lynx.glb` (the model), `set.glb` (the desk set), `rig.json`, `studio_1k.hdr` |

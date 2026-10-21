@@ -3,3 +3,8 @@ dist/
 .pio/
 .DS_Store
 *.mp4
+.venv/
+.ruff_cache/
+__pycache__/
+snapshot.jpg
+.env
