@@ -7,12 +7,75 @@ namespace lynx {
 
 static const char* kVersionKey = "io.modelcontextprotocol/protocolVersion";
 static const char* kLegacy[] = {"2025-11-25", "2025-06-18", "2025-03-26"};
+// Sent on initialize / server/discover. Kept short: what an agent needs before its first call.
 static const char* kInstructions =
-    "lynx is a pan/tilt camera. Angles are degrees: pan -88..88 (0 = straight ahead, positive = to the "
-    "camera's left), tilt -58..58 (0 = lens straight up, 45 = the rest pose, leaning toward the front). "
-    "Use snapshot to see what it sees; video is not carried over MCP, use stream_url for a live MJPEG feed. "
-    "detect runs on-device face (or cat-face) detection and returns boxes; follow keeps a face in frame. "
-    "Detection only: nobody is identified.";
+    "lynx is a pan/tilt camera on the user's network. You can aim it, look through it, and use its on-device "
+    "detector. Call the guide tool (or read the lynx://guide resource) for the full manual.\n"
+    "Angles are degrees. pan -88..88: 0 = straight ahead, positive = toward the camera's left. tilt -58..58: "
+    "0 = lens straight up, 45 = the rest pose (leaning forward), 58 = looking down at the front. "
+    "look returns the move's duration; wait that long before a snapshot.\n"
+    "To see: snapshot returns a JPEG (annotate: true draws the current detections). Video is not carried over "
+    "MCP; stream_url gives a live MJPEG URL for a person to open.\n"
+    "To find things: detect returns faces, cat faces or a custom model's objects as boxes (x, y, w, h, 0..1, origin "
+    "top-left). One frame is about 62 x 48 degrees: to centre a box, move pan by about (cx - 0.5) * 62 and tilt "
+    "by about (cy - 0.5) * 48, then detect again; if it moved the wrong way, reverse that axis (it depends on "
+    "how the board is mounted). follow does this continuously for the nearest face.\n"
+    "Who moves the head: a command (yours, the dashboard's, Home Assistant's) wins for 5 s, then follow while it "
+    "sees a face, then patrol. If the head drifts after you moved it, follow or patrol took over: turn them off.\n"
+    "Privacy: detection, not recognition; nobody is identified. Describe what you see; don't guess who someone is. "
+    "Ask before turning on recording or patrol, which keep running after the conversation.";
+
+// The full manual: the guide tool and the lynx://guide resource.
+static const char* kGuide =
+    "# lynx: guide for agents\n\n"
+    "lynx is an open-source pan/tilt camera (XIAO ESP32-S3 Sense, two servos). This MCP server runs on the "
+    "camera itself. Everything here acts on the real device in the user's home.\n\n"
+    "## Coordinates\n"
+    "- pan -88..88 degrees. 0 is straight ahead; positive turns toward the camera's left (the viewer's right when "
+    "facing it).\n"
+    "- tilt -58..58 degrees. 0 points the lens straight up; 45 is the rest pose, leaning forward; 58 is the "
+    "lowest, looking down at the front.\n"
+    "- The field of view is about 62 x 48 degrees, so one frame-width is about 62 degrees of pan.\n"
+    "- Moves are eased like a head turn. look returns its duration in ms: wait at least that long, plus ~300 ms "
+    "for the image to settle, before snapshot.\n\n"
+    "## Seeing\n"
+    "- snapshot: a JPEG of what the camera sees now. annotate: true draws the current detections as green boxes.\n"
+    "- stream_url: live MJPEG and still URLs for a person (browser, VLC, Home Assistant). They need the token.\n"
+    "- set_camera: resolution (QVGA..UXGA), JPEG quality, flip, mirror, brightness. Higher resolutions make "
+    "snapshots larger and slower; VGA is a good default.\n\n"
+    "## Detecting and following\n"
+    "- detect with no arguments: what is in view now. Boxes are normalised (x, y, w, h; origin top-left).\n"
+    "- detect {enabled: true, model: face|cat|custom, range: near|far}: switch the detector. It stays on.\n"
+    "  far finds faces down to ~12 % of the frame (across a room); near needs ~30 % but is faster. custom is an "
+    "Edge Impulse model the owner installed; its labels are whatever they trained.\n"
+    "- It runs about 4 times a second. A result can be up to ~250 ms old.\n"
+    "- To centre an object at box centre (cx, cy): change pan by about (cx - 0.5) * 62 and tilt by about "
+    "(cy - 0.5) * 48, then detect again. Which way is positive depends on how the board sits in the head (flip "
+    "and mirror settings), so if the object moved further off-centre, reverse that axis.\n"
+    "- follow {enabled: true}: the head keeps the nearest face centred, holds 6 s after losing it, then returns "
+    "to rest. Detection must be on.\n\n"
+    "## Presets and patrol\n"
+    "- preset {action: list|go|save|delete, name}: up to 8 named positions (a-z, 0-9, - and _). save without "
+    "pan/tilt stores where the head is now.\n"
+    "- patrol {enabled, presets, dwell_s}: tour presets on a loop.\n"
+    "- Priority: a command (from you, the dashboard, Home Assistant or the serial console) wins for 5 s; then "
+    "follow, while it sees a face; then patrol.\n\n"
+    "## Recordings (microSD)\n"
+    "- recordings {action: status}: is there a card, how full, what is being recorded.\n"
+    "- {action: configure, on_detect, timelapse_min}: save snapshots when something is detected, and/or a frame "
+    "every N minutes. Off by default.\n"
+    "- {action: list, path: /lynx} lists days; path: /lynx/YYYYMMDD lists that day's files; {action: get, path} "
+    "returns one as an image. Times are UTC.\n\n"
+    "## Good practice\n"
+    "- Say what you are about to do before moving the camera if a person is watching.\n"
+    "- Ask the user before turning on follow, patrol or recording: they keep running after you finish.\n"
+    "- Detection finds a face; it doesn't know whose. Don't try to identify people.\n"
+    "- When done, center returns the head to rest.\n\n"
+    "## Recipes\n"
+    "- Look around: for pan in -60, -20, 20, 60: look(pan, tilt 40), wait, snapshot; describe the room.\n"
+    "- Find something: detect (custom model if it was trained for it) or look around and inspect snapshots; "
+    "centre it with look; snapshot with annotate.\n"
+    "- Check a place: preset go, wait, snapshot.\n";
 
 // JSON-RPC / MCP error codes
 enum : int {
@@ -94,7 +157,9 @@ static void schemaNumber(JsonObject props, const char* name, float lo, float hi,
 
 static void t_required(JsonObject tool, const char* name) { tool["inputSchema"]["required"].add(name); }
 
-static void addTool(JsonArray tools, const char* name, const char* title, const char* desc, bool readOnly,
+enum Hint : unsigned { kReadOnly = 1, kIdempotent = 2, kDestructive = 4 };
+
+static void addTool(JsonArray tools, const char* name, const char* title, const char* desc, unsigned hints,
                     JsonObject* propsOut = nullptr) {
   JsonObject t = tools.add<JsonObject>();
   t["name"] = name;
@@ -104,75 +169,94 @@ static void addTool(JsonArray tools, const char* name, const char* title, const 
   s["type"] = "object";
   JsonObject props = s["properties"].to<JsonObject>();
   if (propsOut) *propsOut = props;
-  t["annotations"]["readOnlyHint"] = readOnly;
-  t["annotations"]["destructiveHint"] = false;
+  t["annotations"]["title"] = title;
+  t["annotations"]["readOnlyHint"] = (hints & kReadOnly) != 0;
+  t["annotations"]["idempotentHint"] = (hints & (kReadOnly | kIdempotent)) != 0;
+  t["annotations"]["destructiveHint"] = (hints & kDestructive) != 0;
   t["annotations"]["openWorldHint"] = false;
+}
+
+static void describe(JsonObject props, const char* name, const char* type, const char* desc) {
+  props[name]["type"] = type;
+  props[name]["description"] = desc;
 }
 
 static void listTools(JsonObject result) {
   JsonArray tools = result["tools"].to<JsonArray>();
-  addTool(tools, "status", "Status", "Current pan/tilt angles, motion state, camera settings and network info.", true);
+  addTool(tools, "guide", "Guide",
+          "The manual for this camera: coordinates, how to find and centre things, priorities, recipes. Read it "
+          "before your first move if you haven't used lynx before.",
+          kReadOnly);
+  addTool(tools, "status", "Status",
+          "Current pan/tilt angles, motion state, camera settings, detection, presets and network info.", kReadOnly);
   JsonObject props;
-  addTool(tools, "look", "Look", "Move the head to an absolute pan/tilt position with an eased, natural motion.", false,
-          &props);
-  schemaNumber(props, "pan", -88, 88, "Pan angle in degrees; 0 is straight ahead.");
+  addTool(tools, "look", "Look",
+          "Move the head to an absolute pan/tilt position with an eased, natural motion. Omit pan or tilt to keep it. "
+          "Returns how long the move takes: wait that long before a snapshot.",
+          kIdempotent, &props);
+  schemaNumber(props, "pan", -88, 88, "Pan angle in degrees; 0 is straight ahead, positive is the camera's left.");
   schemaNumber(props, "tilt", -58, 58, "Tilt angle in degrees; 0 is lens straight up, 45 is the rest pose.");
   schemaNumber(props, "ms", 0, 10000, "Optional move duration in milliseconds; omitted = chosen from distance.");
-  addTool(tools, "center", "Center", "Return to the rest pose: pan 0, tilt 45.", false);
-  addTool(tools, "sweep", "Sweep", "Run a demo sweep through the full range of motion.", false);
+  addTool(tools, "center", "Center", "Return to the rest pose: pan 0, tilt 45.", kIdempotent);
+  addTool(tools, "sweep", "Sweep", "Run a demo sweep through the full range of motion (about 8 s).", 0);
   addTool(tools, "snapshot", "Snapshot",
           "Take a JPEG photo with the camera and return it as an image. annotate: true draws the current detections "
           "(green boxes) on it.",
-          true, &props);
-  props["annotate"]["type"] = "boolean";
+          kReadOnly, &props);
+  describe(props, "annotate", "boolean", "Draw the current detections (green boxes) on the image.");
   addTool(tools, "stream_url", "Stream URL",
           "URLs for the live MJPEG video stream and still snapshots (open in a browser, VLC, ffmpeg or Home Assistant).",
-          true);
-  addTool(tools, "set_camera", "Camera settings", "Change camera settings; omitted fields stay as they are.", false,
-          &props);
+          kReadOnly);
+  addTool(tools, "set_camera", "Camera settings", "Change camera settings; omitted fields stay as they are.",
+          kIdempotent, &props);
   JsonObject fs = props["framesize"].to<JsonObject>();
   fs["type"] = "string";
   JsonArray e = fs["enum"].to<JsonArray>();
   for (const char* v : {"QVGA", "VGA", "SVGA", "XGA", "HD", "SXGA", "UXGA"}) e.add(v);
   fs["description"] = "Resolution: QVGA 320x240 .. UXGA 1600x1200.";
   schemaNumber(props, "quality", 4, 63, "JPEG quality, lower is better (4..63).");
-  props["vflip"]["type"] = "boolean";
-  props["hmirror"]["type"] = "boolean";
+  describe(props, "vflip", "boolean", "Flip the image upside down.");
+  describe(props, "hmirror", "boolean", "Mirror the image left to right.");
   schemaNumber(props, "brightness", -2, 2, "Brightness -2..2.");
   addTool(tools, "detect", "Detect",
           "On-device detection: which faces, cat faces, or (with a custom model installed) other things the camera sees now, as boxes normalised to the frame "
-          "(x, y, w, h; origin top-left). Pass enabled/model to switch it; it stays on until turned off.",
-          false, &props);
-  props["enabled"]["type"] = "boolean";
+          "(x, y, w, h; origin top-left). With no arguments it only reads. Pass enabled/model/range to switch it; it "
+          "stays on until turned off.",
+          kIdempotent, &props);
+  describe(props, "enabled", "boolean", "Turn the detector on or off.");
   JsonObject dm = props["model"].to<JsonObject>();
   dm["type"] = "string";
   dm["enum"].add("face");
   dm["enum"].add("cat");
   dm["enum"].add("custom");
+  dm["description"] = "face: human faces; cat: cat faces; custom: the Edge Impulse model the owner installed.";
   JsonObject dr = props["range"].to<JsonObject>();
   dr["type"] = "string";
   dr["enum"].add("near");
   dr["enum"].add("far");
   dr["description"] = "near: faces filling ~30 % of the frame (fastest); far: down to ~12 %, across a room.";
   addTool(tools, "follow", "Follow", "Turn follow mode on or off: the head keeps the nearest face in the middle of the frame.",
-          false, &props);
-  props["enabled"]["type"] = "boolean";
+          kIdempotent, &props);
+  describe(props, "enabled", "boolean", "true to follow (needs detection on), false to stop.");
   t_required(tools[tools.size() - 1], "enabled");
   addTool(tools, "preset", "Preset",
-          "Named positions: list them, go to one, save the current (or a given) position under a name, or delete one.",
-          false, &props);
+          "Named positions: list them, go to one, save the current (or a given) position under a name, or delete one. "
+          "Up to 8.",
+          kDestructive, &props);
   JsonObject pa = props["action"].to<JsonObject>();
   pa["type"] = "string";
   for (const char* v : {"list", "go", "save", "delete"}) pa["enum"].add(v);
+  pa["description"] = "list the presets, go to one, save one, or delete one.";
   props["name"]["type"] = "string";
   props["name"]["description"] = "1-15 characters: a-z, 0-9, - and _";
   schemaNumber(props, "pan", -88, 88, "For save: the pan angle (default: where the head is now).");
   schemaNumber(props, "tilt", -58, 58, "For save: the tilt angle (default: where the head is now).");
   t_required(tools[tools.size() - 1], "action");
   addTool(tools, "patrol", "Patrol",
-          "Tour presets on a loop, dwelling at each. Follow mode takes over while it sees a face; a manual move pauses it.",
-          false, &props);
-  props["enabled"]["type"] = "boolean";
+          "Tour presets on a loop, dwelling at each. Follow mode takes over while it sees a face; a manual move pauses it. "
+          "It keeps running after you finish: ask the user first.",
+          kIdempotent, &props);
+  describe(props, "enabled", "boolean", "Start or stop the patrol.");
   JsonObject pp = props["presets"].to<JsonObject>();
   pp["type"] = "array";
   pp["items"]["type"] = "string";
@@ -181,14 +265,15 @@ static void listTools(JsonObject result) {
   t_required(tools[tools.size() - 1], "enabled");
   addTool(tools, "recordings", "Recordings",
           "The microSD card: status and recording settings (snapshots on detection, timelapse), list days or a day's "
-          "files, or get one recording as an image.",
-          false, &props);
+          "files, or get one recording as an image. Recording is off until configured; ask the user before turning it on.",
+          kIdempotent, &props);
   JsonObject ra = props["action"].to<JsonObject>();
   ra["type"] = "string";
   for (const char* v : {"status", "configure", "list", "get"}) ra["enum"].add(v);
+  ra["description"] = "status: card and settings; configure: change settings; list: days or files; get: one image.";
   props["path"]["type"] = "string";
   props["path"]["description"] = "list: /lynx (days) or /lynx/YYYYMMDD; get: a .jpg path from list";
-  props["on_detect"]["type"] = "boolean";
+  describe(props, "on_detect", "boolean", "configure: save snapshots when something is detected.");
   schemaNumber(props, "timelapse_min", 0, 1440, "configure: minutes between timelapse frames, 0 = off");
   t_required(tools[tools.size() - 1], "action");
 }
@@ -204,7 +289,9 @@ static bool callTool(Device& dev, const std::string& name, JsonObjectConst args,
   JsonArray content = result["content"].to<JsonArray>();
   result["isError"] = false;
   char buf[160];
-  if (name == "status") {
+  if (name == "guide") {
+    text(content, kGuide);
+  } else if (name == "status") {
     JsonDocument st;
     dev.status(st.to<JsonObject>());
     result["structuredContent"] = st.as<JsonVariantConst>();
@@ -380,6 +467,119 @@ static bool callTool(Device& dev, const std::string& name, JsonObjectConst args,
   return true;
 }
 
+// ---------- resources ----------
+
+static void listResources(JsonObject result) {
+  JsonArray r = result["resources"].to<JsonArray>();
+  JsonObject g = r.add<JsonObject>();
+  g["uri"] = "lynx://guide";
+  g["name"] = "guide";
+  g["title"] = "lynx guide for agents";
+  g["description"] = "Coordinates, finding and centring things, priorities, recordings, good practice, recipes.";
+  g["mimeType"] = "text/markdown";
+  JsonObject st = r.add<JsonObject>();
+  st["uri"] = "lynx://status";
+  st["name"] = "status";
+  st["title"] = "Live status";
+  st["description"] = "The camera's current state as JSON (the same as the status tool).";
+  st["mimeType"] = "application/json";
+}
+
+static bool readResource(Device& dev, const std::string& uri, JsonObject result) {
+  JsonObject c = result["contents"].to<JsonArray>().add<JsonObject>();
+  c["uri"] = uri;
+  if (uri == "lynx://guide") {
+    c["mimeType"] = "text/markdown";
+    c["text"] = kGuide;
+  } else if (uri == "lynx://status") {
+    JsonDocument st;
+    dev.status(st.to<JsonObject>());
+    c["mimeType"] = "application/json";
+    c["text"] = dump(st);
+  } else {
+    return false;
+  }
+  return true;
+}
+
+// ---------- prompts ----------
+
+struct PromptDef {
+  const char* name;
+  const char* title;
+  const char* description;
+  const char* arg;      // one optional/required argument, or nullptr
+  const char* argDesc;
+  bool argRequired;
+  const char* text;     // "%s" is replaced by the argument
+};
+
+static const PromptDef kPrompts[] = {
+    {"look_around", "Look around", "Scan the room in a few steps and describe what the camera can see.", nullptr,
+     nullptr, false,
+     "Use the lynx camera to look around the room. Look at pan -60, -20, 20 and 60 (tilt 40), wait for each move, "
+     "take a snapshot at each, then return to center. Describe the room as a whole: layout, notable objects, "
+     "people (without guessing who they are), and anything that looks out of place."},
+    {"find", "Find something", "Search the room for a thing and point the camera at it.", "thing",
+     "What to look for, e.g. \"my keys\" or \"the cat\"", true,
+     "Use the lynx camera to find %s. If detection has a model for it (faces, cat faces, or a custom model), use "
+     "detect; otherwise look around in steps and inspect snapshots. When you find it, centre it with look and take "
+     "an annotated snapshot. Say where it is in the room. If you can't find it, say where you looked."},
+    {"check", "Check on a place", "Go to a saved preset (or a described spot) and report what's there.", "place",
+     "A preset name, or a description like \"the front door\"", true,
+     "Use the lynx camera to check on %s. If it is a preset name (preset list), go there; otherwise find the spot "
+     "by looking around. Wait for the move, take a snapshot, and report what you see in two or three sentences. "
+     "Then return to center."},
+};
+
+static void listPrompts(JsonObject result) {
+  JsonArray ps = result["prompts"].to<JsonArray>();
+  for (const PromptDef& d : kPrompts) {
+    JsonObject p = ps.add<JsonObject>();
+    p["name"] = d.name;
+    p["title"] = d.title;
+    p["description"] = d.description;
+    JsonArray args = p["arguments"].to<JsonArray>();
+    if (d.arg) {
+      JsonObject a = args.add<JsonObject>();
+      a["name"] = d.arg;
+      a["description"] = d.argDesc;
+      a["required"] = d.argRequired;
+    }
+  }
+}
+
+static bool getPrompt(const std::string& name, JsonObjectConst args, JsonObject result, std::string& err) {
+  for (const PromptDef& d : kPrompts) {
+    if (name != d.name) continue;
+    std::string body = d.text;
+    if (d.arg) {
+      std::string v = args[d.arg] | "";
+      if (v.empty() && d.argRequired) {
+        err = std::string("prompt ") + d.name + " needs argument " + d.arg;
+        return false;
+      }
+      size_t at = body.find("%s");
+      if (at != std::string::npos) body.replace(at, 2, v);
+    }
+    result["description"] = d.description;
+    JsonObject m = result["messages"].to<JsonArray>().add<JsonObject>();
+    m["role"] = "user";
+    m["content"]["type"] = "text";
+    m["content"]["text"] = body;
+    return true;
+  }
+  err = "unknown prompt: " + name;
+  return false;
+}
+
+static void capabilities(JsonObject result) {
+  result["capabilities"]["tools"]["listChanged"] = false;
+  result["capabilities"]["resources"]["listChanged"] = false;
+  result["capabilities"]["resources"]["subscribe"] = false;
+  result["capabilities"]["prompts"]["listChanged"] = false;
+}
+
 // ---------- dispatch ----------
 
 McpResponse handleMcp(Device& dev, const McpRequest& req) {
@@ -433,7 +633,7 @@ McpResponse handleMcp(Device& dev, const McpRequest& req) {
   if (method == "initialize" && !modern) {
     std::string asked = in["params"]["protocolVersion"] | "";
     result["protocolVersion"] = isLegacyVersion(asked) ? asked : std::string(kLegacy[0]);
-    result["capabilities"]["tools"]["listChanged"] = false;
+    capabilities(result);
     result["serverInfo"]["name"] = dev.name();
     result["serverInfo"]["title"] = "lynx pan/tilt camera";
     result["serverInfo"]["version"] = dev.version();
@@ -442,7 +642,7 @@ McpResponse handleMcp(Device& dev, const McpRequest& req) {
     JsonArray s = result["supportedVersions"].to<JsonArray>();
     s.add(kModernVersion);
     for (const char* l : kLegacy) s.add(l);
-    result["capabilities"]["tools"]["listChanged"] = false;
+    capabilities(result);
     result["instructions"] = kInstructions;
     JsonObject info = result["_meta"]["io.modelcontextprotocol/serverInfo"].to<JsonObject>();
     info["name"] = dev.name();
@@ -456,6 +656,19 @@ McpResponse handleMcp(Device& dev, const McpRequest& req) {
     if (!name) return error(200, id, kInvalidParams, "tools/call needs params.name");
     std::string err;
     if (!callTool(dev, name, in["params"]["arguments"].as<JsonObjectConst>(), result, err))
+      return error(200, id, kInvalidParams, err);
+  } else if (method == "resources/list") {
+    listResources(result);
+  } else if (method == "resources/templates/list") {
+    result["resourceTemplates"].to<JsonArray>();
+  } else if (method == "resources/read") {
+    std::string uri = in["params"]["uri"] | "";
+    if (!readResource(dev, uri, result)) return error(200, id, -32002, "Resource not found: " + uri);
+  } else if (method == "prompts/list") {
+    listPrompts(result);
+  } else if (method == "prompts/get") {
+    std::string err;
+    if (!getPrompt(in["params"]["name"] | "", in["params"]["arguments"].as<JsonObjectConst>(), result, err))
       return error(200, id, kInvalidParams, err);
   } else {
     return error(modern ? 404 : 200, id, kMethodNotFound, "Method not found: " + method);

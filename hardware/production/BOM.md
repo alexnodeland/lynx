@@ -43,6 +43,40 @@ Print `test-*.stl` first; if fits are off, change `FIT` in build_revD.py and reb
 | 6 | 304 stainless woven mesh ~20 × 20 (McMaster), cut to the `VentMesh` pieces | behind the vent slots (glue) |
 | — | thermal pad, 10 × 10 mm | heatsink to board |
 
+## Cost
+
+**About $43 per camera in parts, or about $55 with the battery and a microSD card.** That's what one lynx
+uses up. Your first build costs more, because the small parts come in packs. Estimated October 2026 in USD,
+single-unit prices, before shipping and tax.
+
+| Part | Each | Per lynx | Source of the price |
+|---|---:|---:|---|
+| Seeed XIAO ESP32-S3 Sense | $13.99 | $13.99 | Seeed store |
+| 2 × micro servo (Adafruit SG92R) | $5.95 | $11.90 | Adafruit 169; MG90S clones are ~$3 |
+| Panel-mount USB-C extension (Adafruit 6069) | ~$3.95 | $3.95 | estimate; resellers $2–6 |
+| Right-angle USB-C cable, thin, 15–20 cm | ~$7 | $7.00 | estimate, generic |
+| 470 µF + 100 nF + 2 × 220 Ω | | $0.75 | distributor single-unit |
+| 9 × M2 × 8 thread-forming screws | ~$0.10 | $0.90 | a pack of 100 is ~$10 |
+| N42 disc magnet (K&J D82) | $0.99 | $0.99 | K&J Magnetics |
+| Spring, braided sleeve, vent mesh, thermal pad | | $2.35 | the share of each pack one build uses |
+| Filament, ~40 g PLA/PETG | ~$20/kg | $1.00 | eight parts are 32 cm³ solid |
+| **Parts for one lynx** | | **≈ $43** | |
+| *Optional:* LiPo 150 mAh (Adafruit 1317) | $5.95 | $5.95 | Adafruit |
+| *Optional:* microSD card, 32 GB | ~$6 | $6.00 | estimate |
+| **With the options** | | **≈ $55** | |
+
+**First build, out of pocket:** about **$80** before shipping, if you already own a printer and filament. The
+difference is minimum packs: screws (~$10/100), springs (~$8 for an assortment), braided sleeve (~$8 a reel),
+stainless mesh (~$15 a sheet), thermal pads (~$6), and passives sold in tens. Most of that covers the next
+few builds as well.
+
+**The carrier PCB** (option A in [`hardware/electronics`](../electronics)) replaces the hand-wired harness. JLCPCB
+makes five bare boards for about $2 plus shipping; having them assembled adds setup and parts fees. The hand-wired
+harness costs nothing extra.
+
+Prices move. Adafruit, Seeed and K&J were checked in October 2026; the cable, the panel socket's retail price and
+the pack prices are estimates.
+
 ## Assembly
 
 1. Press the magnet into the base underside (flush). Screw the panel socket into the pod.

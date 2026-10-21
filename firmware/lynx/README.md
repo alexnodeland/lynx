@@ -24,7 +24,7 @@ Every API call needs a per-device token.
 > These are verified: boot, camera and PSRAM, the captive setup page popping up on a phone, the join,
 > mDNS from macOS, the hotspot closing, REST, MCP (both protocol generations, the Origin guard,
 > token checks, snapshot images) and the MJPEG stream. Still open: servos under load, brownout,
-> `claude mcp add` end to end, and the web flasher. 67 native tests (motion, MCP, auth, network plan, follow, presets, recorder) run in CI.
+> `claude mcp add` end to end, and the web flasher. 71 native tests (motion, MCP, auth and throttle, network plan, follow, presets, recorder) run in CI.
 
 ## How it fits together
 
@@ -246,6 +246,7 @@ image and stream URLs go straight into an `<img>`, VLC or Home Assistant.
 | `POST /api/position` | `{"pan":30,"tilt":45,"ms":600}` (all optional) | move; answers with status |
 | `POST /api/center` | | rest pose (pan 0, tilt 45) |
 | `POST /api/sweep` | | demo sweep |
+| `POST /api/token/rotate` | | mint a new token and return it; the old one stops working at once |
 | `GET /api/camera` | | camera settings |
 | `POST /api/camera` | `{"framesize":"SVGA","quality":10,"vflip":false,"hmirror":false,"brightness":0}` | change any of them (saved) |
 | `GET /snapshot.jpg` | | one JPEG frame |
@@ -290,6 +291,7 @@ It speaks both protocol generations:
 
 | Tool | Arguments | Returns |
 |------|-----------|---------|
+| `guide` | | the manual for agents (the same text as the `lynx://guide` resource) |
 | `status` | | the status JSON (also as `structuredContent`) |
 | `look` | `pan` −88..88, `tilt` −58..58, `ms` optional | text: where it's moving and how long it takes |
 | `center` | | rest pose |
@@ -302,6 +304,21 @@ It speaks both protocol generations:
 | `preset` | `action` (list/go/save/delete), `name`, `pan`/`tilt` | named positions |
 | `patrol` | `enabled`, `presets`, `dwell_s` | tour presets on a loop |
 | `recordings` | `action` (status/configure/list/get), `path`, `on_detect`, `timelapse_min` | the microSD card; `get` returns a recording as an image |
+
+Every tool has a title, a description for each argument, and the standard hints
+(`readOnlyHint`, `idempotentHint`, `destructiveHint`), so clients can ask before a tool that changes something.
+
+**What the agent is told.** An agent learns how to use the camera from three places, so it works whether or not
+its client shows resources or prompts:
+
+- **`instructions`** (sent on `initialize` and `server/discover`): the short version. It covers angles and
+  which way is positive, waiting for a move before a snapshot, centring a box, who wins control of the head,
+  and privacy: detection, not recognition, and asking before anything that keeps running.
+- **The `guide` tool and the `lynx://guide` resource** (Markdown): the full manual, with coordinates and field of
+  view, detection and centring, presets and patrol, recordings, good practice and recipes.
+  `lynx://status` is the live status as a resource.
+- **Prompts:** `look_around` (scan the room in four steps and describe it), `find` *thing* (search, centre it
+  and take an annotated snapshot), and `check` *place* (go to a preset or spot and report).
 
 ```sh
 claude mcp add --transport http lynx http://lynx-1a2b.local/mcp --header "Authorization: Bearer $TOKEN"
@@ -395,10 +412,17 @@ The integration in [`custom_components/lynx`](../../custom_components/lynx) find
 
 - **Token:** 128 random bits from the hardware RNG, minted on first boot and kept in NVS.
   It's required for every endpoint except `/`, `/lynx.css` and `/api/info`, and compared in
-  constant time. `token new` on the serial console rotates it.
-- **Where the token is shown:** only on the setup hotspot page, to someone within radio
-  range during setup, and on the USB serial console. The LAN dashboard never shows it;
-  it asks for it.
+  constant time.
+- **Wrong tokens are throttled** per client address, on both ports. After 5 misses an address gets
+  `429 Too Many Requests` with `Retry-After` for 1 s, doubling with each further miss up to 5 min.
+  A right token clears the count, and a quiet address is forgotten after 10 min. It can't be brute-forced
+  anyway (2¹²⁸ tokens); the throttle keeps a misconfigured client or a scanner from filling the log and
+  tying up the server.
+- **Rotation:** `POST /api/token/rotate`, the Home Assistant *Rotate token* button (which stores the new
+  token itself), or `token new` on the serial console. The old token stops working at once.
+- **Where the token is shown:** on the setup hotspot page, to someone within radio range during setup,
+  and on the USB serial console. The LAN dashboard asks for it, then fills it into its copy-paste snippets
+  for you.
 - **Setup endpoints** (`/setup/*`) answer only on the hotspot interface. The hotspot is open,
   but it's up only on first boot, after BOOT is held, or while the saved network is unreachable.
 - **No TLS:** the token crosses your LAN in the clear, like any LAN camera. Don't expose

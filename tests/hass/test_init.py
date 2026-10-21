@@ -63,6 +63,15 @@ async def test_buttons(hass, entry, lynx):
     assert posts(lynx, "/api/center") and posts(lynx, "/api/sweep")
 
 
+async def test_rotate_token_updates_the_entry(hass, entry, lynx):
+    await setup(hass, entry)
+    await hass.services.async_call("button", "press", {"entity_id": "button.lynx_42e0_rotate_token"}, blocking=True)
+    assert posts(lynx, "/api/token/rotate")[-1][3]["Authorization"] == f"Bearer {TOKEN}"
+    assert entry.data["token"] == "b" * 32
+    await hass.services.async_call("button", "press", {"entity_id": "button.lynx_42e0_rest_pose"}, blocking=True)
+    assert posts(lynx, "/api/center")[-1][3]["Authorization"] == f"Bearer {'b' * 32}"
+
+
 async def test_look_action(hass, entry, lynx):
     await setup(hass, entry)
     await hass.services.async_call(

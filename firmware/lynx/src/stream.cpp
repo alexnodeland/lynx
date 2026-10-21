@@ -12,6 +12,7 @@
 
 #include "app.h"
 #include "auth.h"
+#include "web.h"
 #include "camera.h"
 #include "ota.h"
 
@@ -241,14 +242,16 @@ static void client(void* arg) {
   int one = 1;
   setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
   Request r;
+  uint32_t retry = 0;
   if (!readRequest(fd, r)) {
     // nothing sensible arrived
   } else if (r.method != "GET") {
     reply(fd, "405 Method Not Allowed", "GET only");
   } else if (r.path != "/stream" && r.path != "/events") {
     reply(fd, "404 Not Found", "port 81 serves /stream and /events");
-  } else if (!authorized(r.authorization, queryValue(r.query, "token"), settings.token.c_str())) {
-    reply(fd, "401 Unauthorized", "missing or wrong token (Authorization: Bearer <token>, or ?token=)");
+  } else if (Auth a = checkToken(fd, r.authorization, queryValue(r.query, "token"), retry); a != Auth::Ok) {
+    if (a == Auth::Throttled) reply(fd, "429 Too Many Requests", "too many wrong tokens from this address; wait and try again");
+    else reply(fd, "401 Unauthorized", "missing or wrong token (Authorization: Bearer <token>, or ?token=)");
   } else if (r.path == "/stream") {
     serveStream(fd, r);
   } else {

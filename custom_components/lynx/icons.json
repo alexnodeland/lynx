@@ -6,6 +6,9 @@
       },
       "sweep": {
         "default": "mdi:radar"
+      },
+      "rotate_token": {
+        "default": "mdi:key-change"
       }
     },
     "number": {

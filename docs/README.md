@@ -22,7 +22,8 @@ Pick the path that matches what you're doing. Every page links back here.
 | [HTTP API](../firmware/lynx/README.md#http-api) | position, rest pose, sweep, camera settings, snapshot, MJPEG stream |
 | [MCP for AI agents](../firmware/lynx/README.md#mcp) | tools, both protocol generations, `claude mcp add …` |
 | [Home Assistant](../custom_components/lynx/README.md) | HACS install, entities, the `lynx.look` action, automations |
-| [Security model](../firmware/lynx/README.md#security-model) | the token, where it's shown, what's open, why no TLS |
+| [Security and threat model](security.md) | what's protected and from whom, the token, rotation, the throttle, why no TLS |
+| [MCP guide for agents](../firmware/lynx/README.md#mcp) | what the agent is told: instructions, the `guide` tool, prompts |
 | [Calibration](../firmware/lynx/README.md#calibration) | trims, direction, limits, from the serial console |
 
 ## I want to change it

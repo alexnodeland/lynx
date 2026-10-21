@@ -202,10 +202,10 @@ static void test_modern_header_mismatch_and_unsupported() {
 }
 
 static void test_unknown_method() {
-  auto r = call(modern("resources/list"), "2026-07-28", "resources/list");
+  auto r = call(modern("completion/complete"), "2026-07-28", "completion/complete");
   TEST_ASSERT_EQUAL(404, r.status);
   TEST_ASSERT_EQUAL(-32601, parse(r)["error"]["code"].as<int>());
-  r = call(R"({"jsonrpc":"2.0","id":4,"method":"resources/list"})", "2025-11-25");
+  r = call(R"({"jsonrpc":"2.0","id":4,"method":"completion/complete"})", "2025-11-25");
   TEST_ASSERT_EQUAL(200, r.status);
   TEST_ASSERT_EQUAL(-32601, parse(r)["error"]["code"].as<int>());
 }
@@ -219,13 +219,21 @@ static void test_bad_json_and_batch() {
 static void test_tools_list_names() {
   auto d = parse(call(R"({"jsonrpc":"2.0","id":5,"method":"tools/list"})", "2025-11-25"));
   JsonArray t = d["result"]["tools"];
-  const char* want[] = {"status", "look", "center", "sweep", "snapshot", "stream_url", "set_camera", "detect", "follow", "preset", "patrol", "recordings"};
-  TEST_ASSERT_EQUAL(12, t.size());
-  for (int i = 0; i < 12; i++) {
+  const char* want[] = {"guide", "status", "look", "center", "sweep", "snapshot", "stream_url", "set_camera", "detect", "follow", "preset", "patrol", "recordings"};
+  TEST_ASSERT_EQUAL(13, t.size());
+  for (int i = 0; i < 13; i++) {
     TEST_ASSERT_EQUAL_STRING(want[i], t[i]["name"]);
     TEST_ASSERT_EQUAL_STRING("object", t[i]["inputSchema"]["type"]);
+    TEST_ASSERT_TRUE(strlen(t[i]["description"] | "") > 20);
+    // every argument says what it is for
+    for (JsonPair kv : t[i]["inputSchema"]["properties"].as<JsonObject>())
+      TEST_ASSERT_TRUE_MESSAGE(kv.value()["description"].is<const char*>(), kv.key().c_str());
   }
-  TEST_ASSERT_EQUAL(88, t[1]["inputSchema"]["properties"]["pan"]["maximum"].as<int>());
+  TEST_ASSERT_EQUAL(88, t[2]["inputSchema"]["properties"]["pan"]["maximum"].as<int>());
+  TEST_ASSERT_TRUE(t[0]["annotations"]["readOnlyHint"].as<bool>());     // guide
+  TEST_ASSERT_TRUE(t[2]["annotations"]["idempotentHint"].as<bool>());   // look
+  TEST_ASSERT_FALSE(t[2]["annotations"]["readOnlyHint"].as<bool>());
+  TEST_ASSERT_TRUE(t[10]["annotations"]["destructiveHint"].as<bool>());  // preset can delete
 }
 
 static void test_look_center_sweep() {
@@ -320,6 +328,36 @@ static void test_recordings_without_a_card() {
   TEST_ASSERT_FALSE(d["result"]["structuredContent"]["mounted"].as<bool>());
 }
 
+static void test_guide_resources_and_prompts() {
+  // instructions point at the guide; capabilities advertise resources and prompts
+  auto d = parse(call(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}})"));
+  TEST_ASSERT_NOT_NULL(strstr(d["result"]["instructions"] | "", "guide"));
+  TEST_ASSERT_TRUE(d["result"]["capabilities"]["resources"].is<JsonObject>());
+  TEST_ASSERT_TRUE(d["result"]["capabilities"]["prompts"].is<JsonObject>());
+
+  d = parse(call(modern("tools/call", R"({"name":"guide"})"), "2026-07-28", "tools/call", "guide"));
+  TEST_ASSERT_NOT_NULL(strstr(d["result"]["content"][0]["text"] | "", "## Coordinates"));
+
+  d = parse(call(modern("resources/list"), "2026-07-28", "resources/list"));
+  TEST_ASSERT_EQUAL_STRING("lynx://guide", d["result"]["resources"][0]["uri"]);
+  d = parse(call(modern("resources/read", R"({"uri":"lynx://guide"})"), "2026-07-28", "resources/read"));
+  TEST_ASSERT_EQUAL_STRING("text/markdown", d["result"]["contents"][0]["mimeType"]);
+  d = parse(call(modern("resources/read", R"({"uri":"lynx://status"})"), "2026-07-28", "resources/read"));
+  JsonDocument st;
+  TEST_ASSERT_FALSE(deserializeJson(st, d["result"]["contents"][0]["text"].as<const char*>()));
+  TEST_ASSERT_TRUE(st["pan"].is<JsonObject>());
+  d = parse(call(R"({"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"lynx://nope"}})", "2025-11-25"));
+  TEST_ASSERT_EQUAL(-32002, d["error"]["code"].as<int>());
+
+  d = parse(call(modern("prompts/list"), "2026-07-28", "prompts/list"));
+  TEST_ASSERT_EQUAL(3, d["result"]["prompts"].size());
+  d = parse(call(modern("prompts/get", R"({"name":"find","arguments":{"thing":"the cat"}})"), "2026-07-28",
+                 "prompts/get"));
+  TEST_ASSERT_NOT_NULL(strstr(d["result"]["messages"][0]["content"]["text"] | "", "find the cat."));
+  d = parse(call(modern("prompts/get", R"({"name":"find"})"), "2026-07-28", "prompts/get"));
+  TEST_ASSERT_EQUAL(-32602, d["error"]["code"].as<int>());
+}
+
 static void test_base64_padding() {
   TEST_ASSERT_EQUAL_STRING("", base64((const uint8_t*)"", 0).c_str());
   TEST_ASSERT_EQUAL_STRING("Zg==", base64((const uint8_t*)"f", 1).c_str());
@@ -343,6 +381,7 @@ int main() {
   RUN_TEST(test_detect_and_follow);
   RUN_TEST(test_presets_and_patrol);
   RUN_TEST(test_recordings_without_a_card);
+  RUN_TEST(test_guide_resources_and_prompts);
   RUN_TEST(test_base64_padding);
   return UNITY_END();
 }

@@ -4,6 +4,8 @@
 #include <ArduinoJson.h>
 #include <WiFi.h>
 #include <esp_http_server.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <lwip/sockets.h>
 
 #include <atomic>
@@ -86,10 +88,53 @@ static esp_err_t sendError(httpd_req_t* r, const char* status, const char* msg) 
   return sendJson(r, d, status);
 }
 
+// The client's IPv4 address (IPv4-mapped IPv6 included); 0 if unknown.
+static uint32_t peerIp(int fd) {
+  struct sockaddr_storage a = {};
+  socklen_t len = sizeof a;
+  if (getpeername(fd, (struct sockaddr*)&a, &len) != 0) return 0;
+  uint32_t ip = 0;
+  if (a.ss_family == AF_INET) ip = ((struct sockaddr_in*)&a)->sin_addr.s_addr;
+  else if (a.ss_family == AF_INET6) memcpy(&ip, &((struct sockaddr_in6*)&a)->sin6_addr.un.u32_addr[3], 4);
+  return ip;
+}
+
+static AuthThrottle throttle;
+static SemaphoreHandle_t throttleMx = xSemaphoreCreateMutex();
+
+Auth checkToken(int fd, const std::string& authorization, const std::string& queryToken, uint32_t& retrySeconds) {
+  uint32_t ip = peerIp(fd), now = millis();
+  xSemaphoreTake(throttleMx, portMAX_DELAY);
+  Auth res;
+  uint32_t wait = throttle.retryAfter(ip, now);
+  if (wait) {
+    res = Auth::Throttled;  // not even checked: a locked-out address learns nothing
+  } else if (authorized(authorization, queryToken, settings.token.c_str())) {
+    throttle.success(ip);
+    res = Auth::Ok;
+  } else {
+    throttle.failure(ip, now);
+    wait = throttle.retryAfter(ip, now);
+    res = Auth::Denied;
+  }
+  xSemaphoreGive(throttleMx);
+  retrySeconds = (wait + 999) / 1000;
+  return res;
+}
+
 // Every API call needs the device token, except from the setup hotspot (physical proximity).
 static bool authorizedReq(httpd_req_t* r) {
   if (viaSetupAp(r)) return true;
-  if (authorized(header(r, "Authorization"), queryValue(query(r), "token"), settings.token.c_str())) return true;
+  uint32_t retry = 0;
+  Auth a = checkToken(httpd_req_to_sockfd(r), header(r, "Authorization"), queryValue(query(r), "token"), retry);
+  if (a == Auth::Ok) return true;
+  if (a == Auth::Throttled) {
+    char s[12];
+    snprintf(s, sizeof s, "%u", (unsigned)retry);
+    httpd_resp_set_hdr(r, "Retry-After", s);
+    sendError(r, "429 Too Many Requests", "too many wrong tokens from this address; wait and try again");
+    return false;
+  }
   httpd_resp_set_hdr(r, "WWW-Authenticate", "Bearer realm=\"lynx\"");
   sendError(r, "401 Unauthorized", "missing or wrong token (Authorization: Bearer <token>, or ?token=)");
   return false;
@@ -216,6 +261,17 @@ static esp_err_t centerHandler(httpd_req_t* r) {
   if (!authorizedReq(r)) return ESP_OK;
   device.center();
   return statusHandler(r);
+}
+
+// Mint a new token. The old one stops working at once (open streams keep running until they close).
+// The reply carries the new token, so only a caller holding the current one can rotate it.
+static esp_err_t tokenRotateHandler(httpd_req_t* r) {
+  if (!authorizedReq(r)) return ESP_OK;
+  settings.token = newToken();
+  saveToken(settings.token);
+  JsonDocument d;
+  d["token"] = settings.token;
+  return sendJson(r, d);
 }
 
 static esp_err_t sweepHandler(httpd_req_t* r) {
@@ -519,7 +575,7 @@ void webBegin() {
   httpd_config_t c = HTTPD_DEFAULT_CONFIG();
   c.server_port = 80;
   c.ctrl_port = 32768;
-  c.max_uri_handlers = 40;
+  c.max_uri_handlers = 44;
   c.stack_size = 8192;
   c.recv_wait_timeout = 15;  // an OTA upload over slow Wi-Fi
   c.lru_purge_enable = true;
@@ -532,6 +588,7 @@ void webBegin() {
     route(api, "/api/position", HTTP_POST, positionHandler);
     route(api, "/api/look", HTTP_POST, positionHandler);  // 0.1 name
     route(api, "/api/center", HTTP_POST, centerHandler);
+    route(api, "/api/token/rotate", HTTP_POST, tokenRotateHandler);
     route(api, "/api/sweep", HTTP_POST, sweepHandler);
     route(api, "/api/camera", HTTP_GET, cameraGetHandler);
     route(api, "/api/camera", HTTP_POST, cameraPostHandler);

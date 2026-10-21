@@ -71,4 +71,52 @@ std::string queryValue(const std::string& query, const std::string& key) {
   return "";
 }
 
+// ---------- AuthThrottle ----------
+
+const AuthThrottle::Slot* AuthThrottle::find(uint32_t ip) const {
+  for (const Slot& s : slots_)
+    if (s.used && s.ip == ip) return &s;
+  return nullptr;
+}
+
+uint32_t AuthThrottle::retryAfter(uint32_t ip, uint32_t nowMs) const {
+  const Slot* s = find(ip);
+  if (!s || nowMs - s->lastMs >= kForgetMs) return 0;
+  int32_t left = (int32_t)(s->untilMs - nowMs);  // wrap-safe
+  return left > 0 ? (uint32_t)left : 0;
+}
+
+void AuthThrottle::failure(uint32_t ip, uint32_t nowMs) {
+  Slot* s = const_cast<Slot*>(find(ip));
+  if (!s) {  // a free slot, else the one seen longest ago
+    s = &slots_[0];
+    for (Slot& c : slots_) {
+      if (!c.used) { s = &c; break; }
+      if (nowMs - c.lastMs > nowMs - s->lastMs) s = &c;
+    }
+    *s = Slot();
+    s->used = true;
+    s->ip = ip;
+  } else if (nowMs - s->lastMs >= kForgetMs) {
+    s->fails = 0;
+  }
+  s->fails++;
+  s->lastMs = nowMs;
+  if (s->fails > kFree) {
+    uint32_t n = s->fails - kFree - 1, ms = kBaseMs;
+    while (n-- && ms < kMaxMs) ms *= 2;
+    s->untilMs = nowMs + (ms < kMaxMs ? ms : kMaxMs);
+  }
+}
+
+void AuthThrottle::success(uint32_t ip) {
+  Slot* s = const_cast<Slot*>(find(ip));
+  if (s) *s = Slot();
+}
+
+uint32_t AuthThrottle::failures(uint32_t ip) const {
+  const Slot* s = find(ip);
+  return s ? s->fails : 0;
+}
+
 }  // namespace lynx

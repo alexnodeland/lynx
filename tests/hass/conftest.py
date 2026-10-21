@@ -99,6 +99,7 @@ def lynx(aioclient_mock, status):
     aioclient_mock.get(f"{BASE}/api/status", json=status)
     aioclient_mock.post(f"{BASE}/api/position", json=status)
     aioclient_mock.post(f"{BASE}/api/center", json=status)
+    aioclient_mock.post(f"{BASE}/api/token/rotate", json={"token": "b" * 32})
     aioclient_mock.post(f"{BASE}/api/sweep", json=status)
     aioclient_mock.post(f"{BASE}/api/camera", json=status["camera"])
     aioclient_mock.post(f"{BASE}/api/detect", json={"enabled": True})

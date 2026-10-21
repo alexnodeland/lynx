@@ -59,6 +59,9 @@ class LynxClient:
         if resp.status == 401:
             resp.release()
             raise LynxAuthError("token rejected")
+        if resp.status == 429:
+            resp.release()
+            raise LynxError(f"{self.host} is refusing this address after too many wrong tokens; try again later")
         if resp.status >= 400:
             text = await resp.text()
             raise LynxError(f"{method} {path} -> {resp.status}: {text[:200]}")
@@ -89,6 +92,14 @@ class LynxClient:
         if ms is not None:
             body["ms"] = ms
         return await self._json("POST", "/api/position", json=body)
+
+    async def rotate_token(self) -> str:
+        """Mint a new device token and switch to it. The old one stops working at once."""
+        token = (await self._json("POST", "/api/token/rotate")).get("token")
+        if not isinstance(token, str) or len(token) != 32:
+            raise LynxError("the device did not return a new token")
+        self._token = token
+        return token
 
     async def center(self) -> dict[str, Any]:
         return await self._json("POST", "/api/center")

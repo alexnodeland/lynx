@@ -20,9 +20,9 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # brands: custom integrations can't add to home-assistant/brands; license: the repo is
+          # brand images ship in custom_components/lynx/brand (HA 2026.3+). license: the repo is
           # triple-licensed per folder (LICENSES/, SPDX headers), which GitHub can't show as one licence
-          ignore: brands license
+          ignore: license
   tests:
     runs-on: ubuntu-latest
     steps:

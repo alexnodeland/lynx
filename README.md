@@ -6,6 +6,7 @@
   <a href="https://github.com/alexnodeland/lynx/actions/workflows/pages.yml"><img alt="Pages deploy" src="https://img.shields.io/github/actions/workflow/status/alexnodeland/lynx/pages.yml?branch=main&label=site&logo=github"></a>
   <a href="https://alexnodeland.github.io/lynx/"><img alt="Site" src="https://img.shields.io/badge/site-alexnodeland.github.io%2Flynx-2ea44f"></a>
   <img alt="Printable parts" src="https://img.shields.io/badge/printed%20parts-8-555">
+  <a href="hardware/production/BOM.md#cost"><img alt="Parts cost" src="https://img.shields.io/badge/parts-~%2443-555"></a>
   <a href="https://github.com/alexnodeland/lynx/actions/workflows/firmware.yml"><img alt="Firmware" src="https://github.com/alexnodeland/lynx/actions/workflows/firmware.yml/badge.svg"></a>
   <a href="custom_components/lynx"><img alt="Home Assistant" src="https://github.com/alexnodeland/lynx/actions/workflows/hass.yml/badge.svg"></a>
   <a href="firmware/lynx#mcp"><img alt="MCP server" src="https://img.shields.io/badge/MCP-server-7fd6a4"></a>
@@ -21,7 +22,7 @@
 
 **An open-source pan/tilt camera you can tell where to look.** AI agents drive it over MCP, Home Assistant finds it on its own, and it tracks faces and learns your own objects without sending a frame off the device.
 
-It runs on a Seeed XIAO ESP32-S3 Sense with two MG90S servos and eight 3D-printed parts. One USB-C cable powers it, and one screw type holds it together.
+It runs on a Seeed XIAO ESP32-S3 Sense with two MG90S servos and eight 3D-printed parts. One USB-C cable powers it, and one screw type holds it together. **About $43 in parts** ([cost breakdown](hardware/production/BOM.md#cost)).
 
 **Site:** https://alexnodeland.github.io/lynx/ · **[Web flasher](https://alexnodeland.github.io/lynx/flash.html)** · **[Build guide (3D)](https://alexnodeland.github.io/lynx/build.html)** · **[Docs](docs/README.md)**
 
@@ -139,7 +140,7 @@ flowchart LR
 
 ## Parts
 
-Full list with suppliers in [`hardware/production/BOM.md`](hardware/production/BOM.md).
+About **$43** per camera, **$55** with the battery and a microSD card, and about $80 for your first build because the small parts come in packs ([breakdown](hardware/production/BOM.md#cost)). Full list with suppliers in [`hardware/production/BOM.md`](hardware/production/BOM.md).
 
 | Qty | Part |
 |---|---|
@@ -203,7 +204,7 @@ npm run dev
 
 ```sh
 just setup   # once: PlatformIO + HA test harness in .venv, web deps, git hooks
-just check   # lint, 67 firmware tests, XIAO build, 20 Home Assistant tests, site build
+just check   # lint, 71 firmware tests, XIAO build, 35 Home Assistant tests, site build
 just         # every other recipe: fw-flash, fw-monitor, web-dev, hass-test, look, snap, mcp-add, release …
 ```
 

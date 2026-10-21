@@ -117,7 +117,7 @@ static const char kDashboardHtml[] = R"HTML(<!doctype html><html lang="en"><head
 </section>
 <section class="card">
   <h2>Connect an AI agent (MCP)</h2>
-  <p>lynx speaks the Model Context Protocol at <code>/mcp</code>. Tools: status, look, center, sweep, snapshot, stream_url, set_camera, detect, follow.</p>
+  <p>lynx speaks the Model Context Protocol at <code>/mcp</code>. Tools: guide, status, look, center, sweep, snapshot, stream_url, set_camera, detect, follow, preset, patrol, recordings. It also serves its manual (<code>lynx://guide</code>) and three prompts: look_around, find, check.</p>
   <label>Claude Code <button class="copy" data-c="mcp1">copy</button></label><pre id="mcp1"></pre>
   <label>Other clients (JSON config) <button class="copy" data-c="mcp2">copy</button></label><pre id="mcp2"></pre>
 </section>
