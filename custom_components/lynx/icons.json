@@ -1,0 +1,15 @@
+{
+  "entity": {
+    "button": { "center": { "default": "mdi:home-import-outline" }, "sweep": { "default": "mdi:radar" } },
+    "number": {
+      "pan": { "default": "mdi:pan-horizontal" },
+      "tilt": { "default": "mdi:pan-vertical" },
+      "brightness": { "default": "mdi:brightness-6" },
+      "quality": { "default": "mdi:quality-high" }
+    },
+    "select": { "resolution": { "default": "mdi:aspect-ratio" } },
+    "switch": { "vflip": { "default": "mdi:flip-vertical" }, "hmirror": { "default": "mdi:flip-horizontal" } },
+    "sensor": { "free_heap": { "default": "mdi:memory" } }
+  },
+  "services": { "look": { "service": "mdi:eye-arrow-right-outline" } }
+}

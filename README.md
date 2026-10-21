@@ -7,6 +7,7 @@
   <a href="https://alexnodeland.github.io/lynx/"><img alt="Site" src="https://img.shields.io/badge/site-alexnodeland.github.io%2Flynx-2ea44f"></a>
   <img alt="Printable parts" src="https://img.shields.io/badge/printed%20parts-8-555">
   <a href="https://github.com/alexnodeland/lynx/actions/workflows/firmware.yml"><img alt="Firmware" src="https://github.com/alexnodeland/lynx/actions/workflows/firmware.yml/badge.svg"></a>
+  <a href="custom_components/lynx"><img alt="Home Assistant" src="https://github.com/alexnodeland/lynx/actions/workflows/hass.yml/badge.svg"></a>
   <a href="firmware/lynx#mcp"><img alt="MCP server" src="https://img.shields.io/badge/MCP-server-7fd6a4"></a>
   <a href="firmware/lynx"><img alt="PlatformIO" src="https://img.shields.io/badge/PlatformIO-ESP32--S3-f5822a?logo=platformio&logoColor=white"></a>
   <a href="web"><img alt="three.js" src="https://img.shields.io/badge/three.js-0.170-000?logo=threedotjs"></a>
@@ -26,6 +27,7 @@ An open-source pan/tilt camera built around the Seeed XIAO ESP32-S3 Sense. It ha
 |------|----------|
 | [`hardware/production`](hardware/production) | Print-ready STL/STEP, assembly STEP, [BOM](hardware/production/BOM.md) |
 | [`hardware/electronics`](hardware/electronics) | Circuit, nets, parts, wiring harness (servo-carrier PCB in progress) |
+| [`custom_components/lynx`](custom_components/lynx) | Home Assistant integration (HACS): auto-discovered, camera + live view, pan/tilt, `lynx.look` action |
 | [`firmware/lynx`](firmware/lynx) | PlatformIO firmware: eased pan/tilt, camera snapshots + MJPEG stream, REST API, MCP server, setup hotspot, per-device token |
 | [`web`](web) | three.js landing page (Vite + GSAP) |
 | `media` | Renders and screenshots |
@@ -121,6 +123,8 @@ claude mcp add --transport http lynx http://lynx-xxxx.local/mcp --header "Author
 ```
 
 The full API and MCP tool list are in [`firmware/lynx`](firmware/lynx#http-api).
+
+**Home Assistant:** add this repo to HACS as a custom integration, restart, and lynx shows up under *Discovered*. Paste the token and you're done. See [`custom_components/lynx`](custom_components/lynx).
 
 ### 5. Run the site locally
 

@@ -288,6 +288,11 @@ The dashboard prints both with your token filled in.
 - A first boot used to log one `NOT_FOUND` line per missing setting. Reads now check the key first.
 - Every frame black = a dark room, not a fault: the sensor's auto-exposure is fine once there's light.
 
+## Home Assistant
+
+The integration in [`custom_components/lynx`](../../custom_components/lynx) finds lynx through the
+`_lynx._tcp` mDNS record (its TXT `id` is the full MAC address, used as the device's unique id) and talks to the API above.
+
 ## Security model
 
 - **Token:** 128 random bits from the hardware RNG, minted on first boot and kept in NVS.

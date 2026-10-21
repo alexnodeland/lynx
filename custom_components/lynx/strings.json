@@ -1,0 +1,71 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Add a lynx",
+        "description": "Enter the camera's address and its device token. The token was shown on the setup page; the serial command `token` prints it too ([where to find it]({token_help})).",
+        "data": { "host": "Host", "token": "Device token" },
+        "data_description": {
+          "host": "The camera's address, e.g. lynx-42e0.local or 192.168.1.40.",
+          "token": "32 characters, from the setup page or the serial `token` command."
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "lynx found on your network",
+        "description": "{name} is at {host}. Enter its device token to add it ([where to find it]({token_help})).",
+        "data": { "token": "Device token" }
+      },
+      "reauth_confirm": {
+        "title": "New token for {name}",
+        "description": "{name} rejected its token; it may have been rotated with `token new`. Enter the current one ([where to find it]({token_help})).",
+        "data": { "token": "Device token" }
+      },
+      "reconfigure": {
+        "title": "Change the camera's address",
+        "data": { "host": "Host" }
+      }
+    },
+    "error": {
+      "cannot_connect": "Couldn't reach the camera at that address.",
+      "invalid_auth": "The camera rejected that token.",
+      "not_lynx": "That address answered, but it isn't a lynx.",
+      "unknown": "Unexpected error talking to the camera."
+    },
+    "abort": {
+      "already_configured": "This lynx is already set up.",
+      "not_lynx": "This device isn't a lynx (or runs firmware older than 0.3.0).",
+      "reauth_successful": "Token updated.",
+      "reconfigure_successful": "Address updated.",
+      "wrong_device": "That address belongs to a different lynx."
+    }
+  },
+  "entity": {
+    "binary_sensor": { "moving": { "name": "Moving" } },
+    "button": { "center": { "name": "Rest pose" }, "sweep": { "name": "Sweep" } },
+    "number": {
+      "pan": { "name": "Pan" },
+      "tilt": { "name": "Tilt" },
+      "brightness": { "name": "Brightness" },
+      "quality": { "name": "JPEG quality" }
+    },
+    "select": { "resolution": { "name": "Resolution" } },
+    "sensor": {
+      "rssi": { "name": "Wi-Fi signal" },
+      "free_heap": { "name": "Free memory" },
+      "last_boot": { "name": "Last boot" }
+    },
+    "switch": { "vflip": { "name": "Flip image" }, "hmirror": { "name": "Mirror image" } }
+  },
+  "services": {
+    "look": {
+      "name": "Look",
+      "description": "Moves the camera head to an absolute position with an eased, natural motion.",
+      "fields": {
+        "pan": { "name": "Pan", "description": "Degrees; 0 is straight ahead, positive turns to the camera's left." },
+        "tilt": { "name": "Tilt", "description": "Degrees; 0 points the lens straight up, 45 is the rest pose." },
+        "duration": { "name": "Duration", "description": "Milliseconds for the move; leave empty to pick from the distance." }
+      }
+    }
+  }
+}

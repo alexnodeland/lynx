@@ -1,0 +1,30 @@
+look:
+  target:
+    entity:
+      integration: lynx
+      domain: camera
+  fields:
+    pan:
+      example: 30
+      selector:
+        number:
+          min: -88
+          max: 88
+          step: 1
+          unit_of_measurement: "°"
+    tilt:
+      example: 45
+      selector:
+        number:
+          min: -58
+          max: 58
+          step: 1
+          unit_of_measurement: "°"
+    duration:
+      example: 800
+      selector:
+        number:
+          min: 0
+          max: 10000
+          step: 50
+          unit_of_measurement: ms

@@ -1,0 +1,14 @@
+{
+  "domain": "lynx",
+  "name": "lynx pan/tilt camera",
+  "codeowners": ["@alexnodeland"],
+  "config_flow": true,
+  "dependencies": ["http"],
+  "documentation": "https://github.com/alexnodeland/lynx/tree/main/custom_components/lynx",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/alexnodeland/lynx/issues",
+  "requirements": [],
+  "version": "0.3.0",
+  "zeroconf": ["_lynx._tcp.local."]
+}

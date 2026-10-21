@@ -1,0 +1,6 @@
+# Only the Home Assistant integration's test harness lives here; firmware uses PlatformIO, web uses npm.
+[tool.pytest.ini_options]
+testpaths = ["tests/hass"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

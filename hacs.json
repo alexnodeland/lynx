@@ -1,0 +1,6 @@
+{
+  "name": "lynx pan/tilt camera",
+  "content_in_root": false,
+  "homeassistant": "2025.2.0",
+  "render_readme": true
+}
