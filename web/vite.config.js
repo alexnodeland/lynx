@@ -7,6 +7,10 @@ export default defineConfig({
   build: {
     target: "es2022",
     chunkSizeWarningLimit: 1600,
-    rollupOptions: { input: { main: resolve(__dirname, "index.html"), flash: resolve(__dirname, "flash.html") } },
+    rollupOptions: { input: {
+        main: resolve(__dirname, "index.html"),
+        build: resolve(__dirname, "build.html"),
+        flash: resolve(__dirname, "flash.html"),
+      } },
   },
 });

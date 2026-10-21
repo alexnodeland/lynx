@@ -1,0 +1,59 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Build lynx</title>
+  <meta name="description" content="Build a lynx pan/tilt camera step by step, in 3D: print, assemble, wire, flash and connect." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%237fd6a4' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%237fd6a4'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+  <link rel="stylesheet" href="/src/build.css" />
+</head>
+<body class="guide">
+  <canvas id="scene" aria-label="3D model of the lynx being assembled; drag to look around"></canvas>
+
+  <div id="loader" role="status">
+    <div class="aperture" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="mark">lynx</div>
+    <div class="bar"><span></span></div>
+    <p class="mono">laying out the parts…</p>
+  </div>
+
+  <header class="hud">
+    <a class="brand" href="./" aria-label="lynx home"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" /><circle class="pupil" cx="16" cy="16" r="4" /></svg>lynx</a>
+    <nav>
+      <a class="key small here" href="./build.html" aria-current="page"><span class="cap">Build guide</span></a>
+      <a class="key small" href="./flash.html"><span class="cap">Flash</span></a>
+      <a class="key small" href="https://github.com/alexnodeland/lynx" target="_blank" rel="noopener"><span class="cap">GitHub</span></a>
+    </nav>
+  </header>
+
+  <main id="guide">
+    <article class="slab left in" id="card" aria-live="polite">
+      <div class="face">
+        <p class="eyebrow mono"><span id="g-chapter"></span><span class="sep">·</span><span id="g-num"></span><span class="time" id="g-time"></span></p>
+        <h1 id="g-title"></h1>
+        <p id="g-body"></p>
+        <ul class="need" id="g-need"></ul>
+        <ul class="list" id="g-list"></ul>
+        <div class="tools mono" id="g-tools"></div>
+        <p class="tip" id="g-tip"></p>
+        <a class="link mono" id="g-link" target="_blank" rel="noopener"></a>
+        <div class="stepnav">
+          <button class="key" id="prev" aria-label="Previous step"><span class="cap"><b>←</b></span></button>
+          <button class="key accent" id="next"><span class="cap"><b id="next-label">Next</b></span></button>
+          <button class="key ghost" id="replay" title="Replay this step (R)" aria-label="Replay this step"><span class="cap"><b>↻</b></span></button>
+        </div>
+      </div>
+    </article>
+  </main>
+
+  <nav id="steps-rail" aria-label="Steps"></nav>
+  <p id="hint" class="mono">drag to orbit · scroll to zoom · ← → to step</p>
+
+  <script type="module" src="/src/build.js"></script>
+</body>
+</html>

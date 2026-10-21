@@ -1,0 +1,80 @@
+/* SPDX-License-Identifier: MIT */
+/* the build guide: one glass card, a step rail, the model you can orbit */
+body.guide { overflow: hidden; height: 100vh; }
+body.guide #scene { cursor: grab; touch-action: none; }
+body.guide #scene:active { cursor: grabbing; }
+
+.hud nav { gap: 10px; }
+.key.small.here .cap { background:
+    radial-gradient(120px 60px at var(--mx) var(--my), rgba(190,255,215,.16), transparent 70%),
+    linear-gradient(160deg, rgba(127,214,164,.28), rgba(127,214,164,.06) 50%, rgba(0,0,0,.1)), rgba(18,34,26,.55); }
+
+#guide { position: fixed; z-index: 12; left: clamp(16px, 4vw, 64px); top: 96px; bottom: 112px; display: flex; align-items: center;
+  pointer-events: none; }
+#card { width: min(420px, 92vw); max-height: 100%; }
+#card .face { max-height: calc(100vh - 220px); overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+#card .eyebrow { display: flex; gap: 8px; align-items: center; }
+#card .eyebrow .sep { color: var(--dim); }
+#card .eyebrow .time { margin-left: auto; color: var(--muted); letter-spacing: .06em; text-transform: none; }
+#card h1 { font-size: clamp(26px, 2.6vw, 34px); line-height: 1.05; letter-spacing: -0.035em; margin: 10px 0 12px; }
+#card p { color: var(--muted); font-size: 15px; }
+#card .face > * { transition: opacity .35s var(--ease), transform .45s var(--ease); }
+#card.swap .face > * { opacity: 0; transform: translateY(6px); }
+
+.need { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 6px; }
+.need li { display: grid; grid-template-columns: 34px 1fr; align-items: baseline; gap: 8px; font-size: 14px; }
+.need b { font: 500 12px "JetBrains Mono", monospace; color: var(--accent); text-align: right; }
+.need small { display: block; color: var(--muted); opacity: .8; font-size: 12px; }
+.list { margin: 14px 0 0; padding: 0 0 0 18px; color: var(--ink); font-size: 14px; display: grid; gap: 4px; }
+.list li::marker { color: var(--accent); }
+.tools { margin-top: 14px; font-size: 11.5px; color: var(--muted); letter-spacing: .04em; }
+.tools:empty, .need:empty, .list:empty, .tip:empty { display: none; }
+.tools span { display: inline-block; margin: 0 6px 6px 0; padding: 3px 8px; border-radius: 7px; background: rgba(255,255,255,.05);
+  box-shadow: 0 0 0 1px var(--edge); }
+.tip { margin-top: 16px !important; padding: 10px 12px; border-radius: 12px; font-size: 13.5px !important; color: #e8e1cf !important;
+  background: rgba(240,196,138,.08); box-shadow: inset 0 0 0 1px rgba(240,196,138,.2); }
+.tip::before { content: "tip  "; font: 500 10.5px "JetBrains Mono", monospace; letter-spacing: .16em; text-transform: uppercase; color: var(--accent-2); }
+.link { display: inline-block; margin-top: 14px; color: var(--accent); font-size: 12.5px; text-decoration: none; letter-spacing: .04em; }
+.link:hover { text-decoration: underline; }
+.link:empty { display: none; }
+.link::after { content: " ↗"; }
+
+.stepnav { display: flex; gap: 10px; margin-top: 22px; }
+.stepnav .key { appearance: none; border: 0; background: none; padding: 0; font: inherit; cursor: pointer; }
+.stepnav .key .cap { min-width: 0; padding: 11px 18px 10px; }
+.stepnav .key b { padding-left: 0; }
+.stepnav .key.accent .cap { padding: 11px 26px 10px; }
+.stepnav .key.accent .cap::before, .stepnav .key .cap::before { display: none; }
+.stepnav #next { flex: 1; }
+.stepnav .key:disabled { opacity: .35; cursor: default; }
+.stepnav .key.ghost .cap { background: rgba(255,255,255,.04); }
+
+/* the step rail: chapters, then one dot per step */
+#steps-rail { position: fixed; z-index: 16; left: 50%; bottom: clamp(24px, 4vw, 44px); transform: translateX(-50%); display: flex; gap: 22px;
+  align-items: flex-end; padding: 10px 16px; border-radius: 16px; background: rgba(12,13,16,.5); backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px var(--edge); }
+#steps-rail .ch { display: grid; gap: 7px; }
+#steps-rail .ch small { font: 500 10px "JetBrains Mono", monospace; letter-spacing: .18em; text-transform: uppercase; color: var(--dim); }
+#steps-rail .ch.on small { color: var(--ink); }
+#steps-rail .dots { display: flex; gap: 6px; }
+#steps-rail button { appearance: none; border: 0; cursor: pointer; width: 26px; height: 6px; border-radius: 3px; padding: 0;
+  background: rgba(255,255,255,.14); transition: background .3s, box-shadow .3s, width .35s var(--ease); }
+#steps-rail button.done { background: rgba(127,214,164,.45); }
+#steps-rail button.now { width: 40px; background: var(--accent); box-shadow: 0 0 10px rgba(127,214,164,.7); }
+#steps-rail button:hover { background: rgba(255,255,255,.4); }
+#steps-rail button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+#hint { position: fixed; z-index: 14; right: clamp(16px, 3vw, 40px); bottom: clamp(30px, 4.4vw, 50px); font-size: 11px; color: var(--dim);
+  letter-spacing: .08em; text-shadow: 0 1px 8px rgba(0,0,0,.9); pointer-events: none; }
+
+@media (max-width: 760px) {
+  #guide { left: 8px; right: 8px; top: auto; bottom: 74px; align-items: flex-end; }
+  #card { width: 100%; }
+  #card .face { max-height: 46vh; padding: 18px 18px 16px; }
+  #card h1 { font-size: 24px; margin: 6px 0 8px; }
+  #steps-rail { bottom: 14px; gap: 12px; padding: 8px 10px; max-width: calc(100vw - 16px); }
+  #steps-rail .ch small { display: none; }
+  #steps-rail button { width: 14px; } #steps-rail button.now { width: 24px; }
+  #hint { display: none; }
+  .hud nav .key.small:not(.here) { display: none; }
+}

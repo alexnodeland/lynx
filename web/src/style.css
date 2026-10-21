@@ -67,7 +67,7 @@ body { overflow-x: hidden; -webkit-font-smoothing: antialiased; }
 .brand svg { width: 22px; height: 22px; }
 .brand circle { fill: none; stroke: var(--ink); stroke-width: 2.4; }
 .brand .pupil { fill: var(--accent); stroke: none; transition: transform .3s var(--ease); transform-origin: center; }
-.hud nav { display: flex; align-items: center; }
+.hud nav { display: flex; align-items: center; gap: 10px; }
 
 /* ---------------------------------------------------------------- chapter rail (a focus scale) */
 #rail { position: fixed; left: 50%; bottom: clamp(52px, 6vw, 70px); transform: translateX(-50%); z-index: 16; display: flex; gap: 30px;
