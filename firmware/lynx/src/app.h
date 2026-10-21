@@ -11,7 +11,7 @@
 
 namespace lynx {
 
-constexpr const char* kVersion = "0.3.0";
+constexpr const char* kVersion = "0.4.0";
 
 extern Settings settings;
 extern Motion motion;  // touch only while holding a MotionLock: the HTTP servers run in their own tasks
