@@ -154,6 +154,27 @@ static void listTools(JsonObject result) {
           false, &props);
   props["enabled"]["type"] = "boolean";
   t_required(tools[tools.size() - 1], "enabled");
+  addTool(tools, "preset", "Preset",
+          "Named positions: list them, go to one, save the current (or a given) position under a name, or delete one.",
+          false, &props);
+  JsonObject pa = props["action"].to<JsonObject>();
+  pa["type"] = "string";
+  for (const char* v : {"list", "go", "save", "delete"}) pa["enum"].add(v);
+  props["name"]["type"] = "string";
+  props["name"]["description"] = "1-15 characters: a-z, 0-9, - and _";
+  schemaNumber(props, "pan", -88, 88, "For save: the pan angle (default: where the head is now).");
+  schemaNumber(props, "tilt", -58, 58, "For save: the tilt angle (default: where the head is now).");
+  t_required(tools[tools.size() - 1], "action");
+  addTool(tools, "patrol", "Patrol",
+          "Tour presets on a loop, dwelling at each. Follow mode takes over while it sees a face; a manual move pauses it.",
+          false, &props);
+  props["enabled"]["type"] = "boolean";
+  JsonObject pp = props["presets"].to<JsonObject>();
+  pp["type"] = "array";
+  pp["items"]["type"] = "string";
+  pp["description"] = "Preset names in visiting order (default: all)";
+  schemaNumber(props, "dwell_s", 1, 3600, "Seconds at each stop (default 10).");
+  t_required(tools[tools.size() - 1], "enabled");
 }
 
 static void text(JsonArray content, const std::string& s) {
@@ -249,6 +270,39 @@ static bool callTool(Device& dev, const std::string& name, JsonObjectConst args,
       }
       text(content, s);
     }
+  } else if (name == "preset" || name == "patrol") {
+    std::string e;
+    bool ok = true;
+    std::string action = args["action"] | "";
+    if (name == "patrol") {
+      JsonDocument a;
+      a["enabled"] = args["enabled"];
+      if (!args["presets"].isNull()) a["presets"] = args["presets"];
+      if (!args["dwell_s"].isNull()) a["dwellS"] = args["dwell_s"];
+      ok = dev.setPatrol(a.as<JsonObjectConst>(), e);
+    } else if (action != "list") {
+      ok = dev.preset(args, e);
+    }
+    if (!ok) {
+      err = e;
+      return false;
+    }
+    JsonDocument d;
+    dev.presets(d.to<JsonObject>());
+    result["structuredContent"] = d.as<JsonVariantConst>();
+    std::string s;
+    JsonArrayConst ps = d["presets"];
+    if (name == "patrol") s = d["patrol"]["enabled"].as<bool>() ? "patrolling" : "patrol off";
+    else if (action == "go") s = "going to " + std::string(args["name"] | "");
+    else if (action == "save") s = "saved " + std::string(args["name"] | "");
+    else if (action == "delete") s = "deleted " + std::string(args["name"] | "");
+    else s = std::to_string(ps.size()) + " presets";
+    for (JsonObjectConst p : ps) {
+      snprintf(buf, sizeof buf, "\n- %s: pan %.0f, tilt %.0f", p["name"].as<const char*>(), p["pan"].as<float>(),
+               p["tilt"].as<float>());
+      s += buf;
+    }
+    text(content, s);
   } else if (name == "follow") {
     if (args["enabled"].isNull()) {
       err = "follow needs enabled: true or false";

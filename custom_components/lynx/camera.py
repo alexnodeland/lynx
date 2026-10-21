@@ -23,12 +23,11 @@ async def async_setup_entry(
 ) -> None:
     async_add_entities([LynxCamera(entry.runtime_data)])
     if not hasattr(service, "async_register_platform_entity_service"):  # pre-2026 Home Assistant
-        from . import LOOK_SCHEMA
-        from .const import SERVICE_LOOK
+        from . import CAMERA_ACTIONS
 
-        entity_platform.async_get_current_platform().async_register_entity_service(
-            SERVICE_LOOK, LOOK_SCHEMA, "async_look"
-        )
+        platform = entity_platform.async_get_current_platform()
+        for name, schema, func in CAMERA_ACTIONS:
+            platform.async_register_entity_service(name, schema, func)
 
 
 class LynxCamera(LynxEntity, Camera):
@@ -62,6 +61,22 @@ class LynxCamera(LynxEntity, Camera):
         return await async_aiohttp_proxy_web(
             self.hass, request, session.get(client.stream_url, headers=client.auth_headers)
         )
+
+    async def async_save_preset(self, name: str, pan: float | None = None, tilt: float | None = None) -> None:
+        """lynx.save_preset: name the current position (or the one given)."""
+        extra = {k: v for k, v in (("pan", pan), ("tilt", tilt)) if v is not None}
+        try:
+            await self.coordinator.client.preset("save", name, **extra)
+        except LynxError as err:
+            raise HomeAssistantError(f"lynx did not save the preset: {err}") from err
+        await self.coordinator.async_request_refresh()
+
+    async def async_delete_preset(self, name: str) -> None:
+        try:
+            await self.coordinator.client.preset("delete", name)
+        except LynxError as err:
+            raise HomeAssistantError(f"lynx did not delete the preset: {err}") from err
+        await self.coordinator.async_request_refresh()
 
     async def async_look(
         self, pan: float | None = None, tilt: float | None = None, duration: int | None = None

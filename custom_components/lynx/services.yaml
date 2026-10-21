@@ -28,3 +28,31 @@ look:
           max: 10000
           step: 50
           unit_of_measurement: ms
+save_preset:
+  target:
+    entity:
+      integration: lynx
+      domain: camera
+  fields:
+    name:
+      required: true
+      example: door
+      selector:
+        text:
+    pan:
+      selector:
+        number: { min: -88, max: 88, step: 1, unit_of_measurement: "°" }
+    tilt:
+      selector:
+        number: { min: -58, max: 58, step: 1, unit_of_measurement: "°" }
+delete_preset:
+  target:
+    entity:
+      integration: lynx
+      domain: camera
+  fields:
+    name:
+      required: true
+      example: door
+      selector:
+        text:

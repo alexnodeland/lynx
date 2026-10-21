@@ -4,6 +4,7 @@
 #include <Arduino.h>
 
 #include "motion.h"
+#include "presets.h"
 
 namespace lynx {
 
@@ -35,6 +36,17 @@ void saveWifi(const String& ssid, const String& pass);
 void saveToken(const String& token);
 void saveCamera(const CameraSettings& c);
 void saveDetect(const Settings& s);
+// presets and the patrol live in their own keys (blobs)
+void loadPresets(Presets& p);
+void savePresets(const Presets& p);
+struct PatrolSaved {
+  bool on = false;
+  int n = 0;
+  int order[kMaxPresets] = {};
+  uint32_t dwellMs = 10000;
+};
+void loadPatrol(PatrolSaved& p);
+void savePatrol(const PatrolSaved& p);
 String newToken();  // 32 hex chars from the hardware RNG
 
 }  // namespace lynx

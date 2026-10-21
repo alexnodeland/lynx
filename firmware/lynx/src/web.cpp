@@ -128,6 +128,9 @@ class LynxDevice : public Device {
   void detections(JsonObject o) override { detectionsJson(o); }
   bool setDetect(JsonObjectConst s, std::string& e) override { return applyDetectJson(s, e); }
   bool setFollow(JsonObjectConst s, std::string& e) override { return applyFollowJson(s, e); }
+  void presets(JsonObject o) override { presetsJson(o); }
+  bool preset(JsonObjectConst s, std::string& e) override { return presetAction(s, e); }
+  bool setPatrol(JsonObjectConst s, std::string& e) override { return applyPatrolJson(s, e); }
 };
 static LynxDevice device;
 
@@ -168,6 +171,8 @@ static esp_err_t infoHandler(httpd_req_t* r) {
   e["detections"] = "GET /api/detections";
   e["detect"] = "POST /api/detect {enabled, model: face|cat}";
   e["follow"] = "POST /api/follow {enabled}";
+  e["presets"] = "GET|POST /api/presets {action: save|go|delete, name}";
+  e["patrol"] = "POST /api/patrol {enabled, presets, dwellS}";
   e["mcp"] = "POST /mcp";
   d["auth"] = "Authorization: Bearer <token> (or ?token= for snapshot and stream URLs)";
   return sendJson(r, d);
@@ -302,6 +307,29 @@ static esp_err_t followSetHandler(httpd_req_t* r) {
   if (!body(r, b) || deserializeJson(in, b)) return sendError(r, "400 Bad Request", "expected JSON {enabled}");
   if (!applyFollowJson(in.as<JsonObjectConst>(), err)) return sendError(r, "400 Bad Request", err.c_str());
   return detectionsHandler(r);
+}
+
+// presets + patrol: GET /api/presets; POST /api/presets {action, name, ...}; POST /api/patrol {...}
+static esp_err_t presetsGetHandler(httpd_req_t* r) {
+  if (!authorizedReq(r)) return ESP_OK;
+  JsonDocument d;
+  presetsJson(d.to<JsonObject>());
+  return sendJson(r, d);
+}
+
+static esp_err_t jsonPost(httpd_req_t* r, bool (*apply)(JsonObjectConst, std::string&), const char* shape) {
+  if (!authorizedReq(r)) return ESP_OK;
+  std::string b, err;
+  JsonDocument in;
+  if (!body(r, b) || deserializeJson(in, b)) return sendError(r, "400 Bad Request", shape);
+  if (!apply(in.as<JsonObjectConst>(), err)) return sendError(r, "400 Bad Request", err.c_str());
+  return presetsGetHandler(r);
+}
+static esp_err_t presetsPostHandler(httpd_req_t* r) {
+  return jsonPost(r, presetAction, "expected JSON {action: save|go|delete, name, pan?, tilt?}");
+}
+static esp_err_t patrolPostHandler(httpd_req_t* r) {
+  return jsonPost(r, applyPatrolJson, "expected JSON {enabled, presets: [names], dwellS}");
 }
 
 static esp_err_t snapshotHandler(httpd_req_t* r) {
@@ -459,7 +487,7 @@ void webBegin() {
   httpd_config_t c = HTTPD_DEFAULT_CONFIG();
   c.server_port = 80;
   c.ctrl_port = 32768;
-  c.max_uri_handlers = 24;
+  c.max_uri_handlers = 40;
   c.stack_size = 8192;
   c.lru_purge_enable = true;
   c.max_open_sockets = 7;
@@ -476,6 +504,9 @@ void webBegin() {
     route(api, "/api/camera", HTTP_POST, cameraPostHandler);
     route(api, "/snapshot.jpg", HTTP_GET, snapshotHandler);
     route(api, "/api/detections", HTTP_GET, detectionsHandler);
+    route(api, "/api/presets", HTTP_GET, presetsGetHandler);
+    route(api, "/api/presets", HTTP_POST, presetsPostHandler);
+    route(api, "/api/patrol", HTTP_POST, patrolPostHandler);
     route(api, "/api/detect", HTTP_POST, detectSetHandler);
     route(api, "/api/detect/image", HTTP_POST, detectImageHandler);
     route(api, "/api/follow", HTTP_POST, followSetHandler);

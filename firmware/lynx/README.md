@@ -24,7 +24,7 @@ Every API call needs a per-device token.
 > These are verified: boot, camera and PSRAM, the captive setup page popping up on a phone, the join,
 > mDNS from macOS, the hotspot closing, REST, MCP (both protocol generations, the Origin guard,
 > token checks, snapshot images) and the MJPEG stream. Still open: servos under load, brownout,
-> `claude mcp add` end to end, and the web flasher. 49 native tests (motion, MCP, auth, network plan, follow) run in CI.
+> `claude mcp add` end to end, and the web flasher. 58 native tests (motion, MCP, auth, network plan, follow, presets) run in CI.
 
 ## How it fits together
 
@@ -129,6 +129,7 @@ Pure logic lives in `lib/`. It has no Arduino includes, builds for the board and
 | `lib/auth/` | token generation and constant-time check, Bearer / `?token=` parsing, Origin guard |
 | `src/main.cpp` | servo PWM, serial console, status JSON, the motion lock |
 | `lib/follow/` | follow mode: detection → pan/tilt corrections (deadband, step cap, signs, hold then return to rest) |
+| `lib/presets/` | named positions, the patrol that tours them, and the arbiter: manual > follow (with a target) > patrol |
 | `lib/netplan/` | when the setup hotspot opens and closes, and the join state: pure rules, unit-tested |
 | `src/net.*` | carries out the netplan: hotspot + captive DNS, station mode, mDNS (with IPv6), BOOT button |
 | `src/web.*` | `esp_http_server`: port 80 (pages, REST, MCP, snapshot), port 81 (stream) |
@@ -138,7 +139,7 @@ Pure logic lives in `lib/`. It has no Arduino includes, builds for the board and
 | `src/pages.h` | setup page, dashboard, shared CSS (no external assets) |
 | `src/settings.*` | NVS (Preferences, namespace `lynx`): calibration, Wi-Fi, token, camera |
 | `tools/merge_bin.py` | post-build: `lynx.bin`, one image to flash at 0x0 (used by the web flasher) |
-| `test/` | Unity tests: `test_motion`, `test_mcp`, `test_auth`, `test_netplan`, `test_follow` |
+| `test/` | Unity tests: `test_motion`, `test_mcp`, `test_auth`, `test_netplan`, `test_follow`, `test_presets` |
 
 The HTTP servers run in their own FreeRTOS tasks, so every touch of the motion
 core goes through a recursive mutex (`MotionLock`). The stream gets its own server
@@ -218,6 +219,8 @@ Settings changes take effect at once but are lost on reset until `save`.
 | `info` | name, address, version, camera state |
 | `detect [off\|face\|cat]` | detection on with that model, or off; no argument prints what it sees |
 | `follow [on\|off]` | follow mode |
+| `preset [save\|go\|del] <name>` | named positions; no arguments lists them |
+| `patrol on [a,b,c] [dwell] \| off` | tour presets |
 | `follow signs <pan> <tilt>` | ±1 each: flip if follow turns the wrong way for how the board sits |
 | `save` | persist calibration/limits/speed/idle |
 | `status` | JSON status |
@@ -241,6 +244,9 @@ image and stream URLs go straight into an `<img>`, VLC or Home Assistant.
 | `GET /api/camera` | | camera settings |
 | `POST /api/camera` | `{"framesize":"SVGA","quality":10,"vflip":false,"hmirror":false,"brightness":0}` | change any of them (saved) |
 | `GET /snapshot.jpg` | | one JPEG frame |
+| `GET /api/presets` | | named positions and the patrol |
+| `POST /api/presets` | `{"action":"save","name":"door"}` (save uses the current position unless `pan`/`tilt` given), `go`, `delete` | up to 8 presets (saved) |
+| `POST /api/patrol` | `{"enabled":true,"presets":["door","desk"],"dwellS":10}` | tour presets on a loop (saved; resumes after a reboot) |
 | `GET /api/detections` | | the latest detections: boxes `[x, y, w, h]` normalised 0..1, scores, fps |
 | `POST /api/detect` | `{"enabled":true,"model":"face","range":"far"}` | detection on/off; `face`, `cat` or `custom` (if installed); `near`/`far` (saved) |
 | `POST /api/follow` | `{"enabled":true}` (and `panSign`/`tiltSign`) | follow mode (turns detection on if needed) |
@@ -281,6 +287,8 @@ It speaks both protocol generations:
 | `set_camera` | `framesize`, `quality`, `vflip`, `hmirror`, `brightness` | confirmation |
 | `detect` | `enabled`, `model` (face/cat), `range` (near/far), all optional | what's in view: count, positions, boxes |
 | `follow` | `enabled` | follow the nearest face on/off |
+| `preset` | `action` (list/go/save/delete), `name`, `pan`/`tilt` | named positions |
+| `patrol` | `enabled`, `presets`, `dwell_s` | tour presets on a loop |
 
 ```sh
 claude mcp add --transport http lynx http://lynx-1a2b.local/mcp --header "Authorization: Bearer $TOKEN"
@@ -330,6 +338,14 @@ It runs at about 3.6 fps with `range: far` and about 4.1 fps with `near`.
 export: `just capture`, then label and train, then `just model-add export.zip`, and it becomes `model: custom`.
 See [docs/custom-models.md](../../docs/custom-models.md). Proven on the board with a public Edge Impulse
 export: +0.72 MB flash, ~1.5 fps for a 96 × 96 classifier.
+
+## Presets and patrol
+
+Save up to 8 named positions (`door`, `desk`); go to one, or let lynx **patrol** them on a loop with a
+dwell at each. Three things can want the head at once, and one rule settles it:
+**a person's command** (API, MCP, dashboard, serial) wins for 5 s; then **follow**, while it sees a face;
+then **patrol**. So a patrolling lynx stops to follow someone who walks in and resumes its round after
+they leave.
 
 ## Home Assistant
 

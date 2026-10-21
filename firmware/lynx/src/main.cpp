@@ -14,6 +14,7 @@
 #include "camera.h"
 #include "detect.h"
 #include "follow.h"
+#include "presets.h"
 #include "net.h"
 #include "web.h"
 
@@ -38,7 +39,10 @@ static int lastUs[AXIS_COUNT] = {-1, -1};
 static String line;
 static String cameraError;
 static Follow follower;
-static std::atomic<uint32_t> followPausedUntil{0};
+static Arbiter arbiter;  // manual > follow (while it has a target) > patrol
+static Presets presets;
+static Patrol patrol;
+static PatrolSaved patrolSaved;
 
 // ---------- hardware ----------
 
@@ -98,6 +102,7 @@ void statusJson(JsonObject j) {
     j["sweeping"] = motion.sweeping();
   }
   j["restTilt"] = Motion::kRestTiltDeg;
+  presetsJson(j);
   j["idleMs"] = settings.motion.idleDetachMs;
   j["maxSpeed"] = settings.motion.maxSpeedDegPerS;
   cameraJson(j["camera"].to<JsonObject>());
@@ -248,11 +253,126 @@ bool applyFollowJson(JsonObjectConst in, std::string& error) {
   return true;
 }
 
-void pauseFollow(uint32_t ms) { followPausedUntil = millis() + ms; }
+void pauseFollow(uint32_t ms) {
+  MotionLock l;
+  arbiter.manual(millis(), ms);
+}
+
+void presetsJson(JsonObject o) {
+  MotionLock l;
+  JsonArray a = o["presets"].to<JsonArray>();
+  for (int i = 0; i < presets.count(); i++) {
+    JsonObject p = a.add<JsonObject>();
+    p["name"] = presets.at(i).name;
+    p["pan"] = presets.at(i).pan;
+    p["tilt"] = presets.at(i).tilt;
+  }
+  JsonObject pt = o["patrol"].to<JsonObject>();
+  pt["enabled"] = patrol.on();
+  pt["dwellS"] = patrol.dwellMs() / 1000;
+  JsonArray order = pt["presets"].to<JsonArray>();
+  for (int i = 0; i < patrol.length(); i++) {
+    int k = patrol.stopAt(i);
+    if (k >= 0 && k < presets.count()) order.add(presets.at(k).name);
+  }
+  int c = patrol.current();
+  if (patrol.on() && c >= 0 && patrol.stopAt(c) < presets.count()) pt["at"] = presets.at(patrol.stopAt(c)).name;
+}
+
+static void restartPatrol(uint32_t now) {
+  patrol.start(patrolSaved.order, patrolSaved.n, patrolSaved.dwellMs, now);
+  if (!patrolSaved.on) patrol.stop();
+}
+
+bool presetAction(JsonObjectConst in, std::string& error) {
+  const char* action = in["action"] | "";
+  const char* name = in["name"] | "";
+  uint32_t now = millis();
+  MotionLock l;
+  if (!strcmp(action, "save")) {
+    float pan = in["pan"].isNull() ? motion.axis(PAN).target() : in["pan"].as<float>();
+    float tilt = in["tilt"].isNull() ? motion.axis(TILT).target() : in["tilt"].as<float>();
+    if (!presets.save(name, pan, tilt)) {
+      error = presets.count() >= kMaxPresets && presets.find(name) < 0
+                  ? "all 8 preset slots are taken; delete one first"
+                  : "a name is 1-15 characters: a-z, 0-9, - and _";
+      return false;
+    }
+    savePresets(presets);
+    return true;
+  }
+  int i = presets.find(name);
+  if (i < 0) {
+    error = std::string("no preset called '") + name + "'";
+    return false;
+  }
+  if (!strcmp(action, "go")) {
+    arbiter.manual(now, 5000);
+    motion.look(presets.at(i).pan, presets.at(i).tilt, -1, now);
+    return true;
+  }
+  if (!strcmp(action, "delete")) {
+    // keep the patrol pointing at the same names after the indices shift
+    PatrolSaved ps = patrolSaved;
+    char names[kMaxPresets][kPresetNameLen];
+    for (int k = 0; k < ps.n; k++) strcpy(names[k], ps.order[k] < presets.count() ? presets.at(ps.order[k]).name : "");
+    presets.remove(name);
+    patrolSaved.n = 0;
+    for (int k = 0; k < ps.n; k++) {
+      int j = presets.find(names[k]);
+      if (j >= 0) patrolSaved.order[patrolSaved.n++] = j;
+    }
+    if (patrolSaved.n == 0) patrolSaved.on = false;
+    savePresets(presets);
+    savePatrol(patrolSaved);
+    restartPatrol(now);
+    return true;
+  }
+  error = "action must be save, go or delete";
+  return false;
+}
+
+bool applyPatrolJson(JsonObjectConst in, std::string& error) {
+  MotionLock l;
+  PatrolSaved ps = patrolSaved;
+  if (!in["presets"].isNull()) {
+    ps.n = 0;
+    for (JsonVariantConst v : in["presets"].as<JsonArrayConst>()) {
+      int j = presets.find(v.as<const char*>());
+      if (j < 0) {
+        error = std::string("no preset called '") + (v.as<const char*>() ? v.as<const char*>() : "?") + "'";
+        return false;
+      }
+      if (ps.n < kMaxPresets) ps.order[ps.n++] = j;
+    }
+  }
+  if (!in["dwellS"].isNull()) ps.dwellMs = (uint32_t)constrain(in["dwellS"].as<int>(), 1, 3600) * 1000;
+  if (!in["enabled"].isNull()) ps.on = in["enabled"].as<bool>();
+  if (ps.on && ps.n == 0) {  // default tour: every preset, in order
+    for (int j = 0; j < presets.count(); j++) ps.order[ps.n++] = j;
+    if (ps.n == 0) {
+      error = "save some presets first";
+      return false;
+    }
+  }
+  patrolSaved = ps;
+  savePatrol(patrolSaved);
+  restartPatrol(millis());
+  return true;
+}
 
 }  // namespace lynx
 
 // ---------- follow mode ----------
+
+static void pollPatrol(uint32_t now) {
+  MotionLock l;
+  if (!patrol.on()) return;
+  bool tracking = settings.follow && follower.tracking(now);
+  bool idle = !motion.axis(PAN).moving() && !motion.axis(TILT).moving() && !motion.sweeping();
+  Patrol::Step s = patrol.tick(now, arbiter.patrolMay(now, tracking), idle, presets);
+  if (s.move) motion.look(s.pan, s.tilt, -1, now);  // a glance between stops
+}
 
 static void pollFollow(uint32_t now) {
   static uint32_t lastSeq = 0;
@@ -278,7 +398,7 @@ static void pollFollow(uint32_t now) {
   } else {
     m = follower.tick(now, pan, tilt);
   }
-  if (!m.move || (int32_t)(now - followPausedUntil.load()) < 0 || motion.sweeping()) return;
+  if (!m.move || !arbiter.followMay(now) || motion.sweeping()) return;
   if (m.rest) motion.look(m.pan, m.tilt, -1, now);  // a calm glance home
   else motion.track(m.pan, m.tilt, 220, now);
 }
@@ -314,6 +434,8 @@ static void printHelp() {
       "  detect [off|face|cat]     on-device detection (no arg: print what it sees)\n"
       "  follow [on|off]           turn the head to keep a face in frame\n"
       "  follow signs <pan> <tilt> +1/-1 each, for how the board sits in the pod\n"
+      "  preset [save|go|del] <name>  named positions (save uses the current position); no args: list\n"
+      "  patrol on [a,b,c] [dwell s] | off  tour presets\n"
       "  save                      persist calibration/limits to NVS\n"
       "  status                    print JSON status\n"
       "  help"));
@@ -432,6 +554,34 @@ static void handleCommand(String cmd) {
     applyFollowJson(in.as<JsonObjectConst>(), err);
     Serial.printf("follow %s (detect %s, %s)\n", settings.follow ? "on" : "off", detectEnabled() ? "on" : "off",
                   detectModelName(detectModel()));
+  } else if (c == "preset") {
+    JsonDocument in, out;
+    std::string err;
+    if (n >= 3) {
+      in["action"] = tok[1] == "del" ? "delete" : tok[1].c_str();
+      in["name"] = tok[2].c_str();
+      if (!presetAction(in.as<JsonObjectConst>(), err)) Serial.printf("? %s\n", err.c_str());
+    }
+    presetsJson(out.to<JsonObject>());
+    serializeJson(out, Serial);
+    Serial.println();
+  } else if (c == "patrol" && n >= 2) {
+    JsonDocument in;
+    std::string err;
+    in["enabled"] = tok[1] == "on";
+    if (n >= 3) {
+      JsonArray a = in["presets"].to<JsonArray>();
+      int from = 0;
+      while (from <= (int)tok[2].length()) {
+        int comma = tok[2].indexOf(',', from);
+        if (comma < 0) comma = tok[2].length();
+        if (comma > from) a.add(tok[2].substring(from, comma));
+        from = comma + 1;
+      }
+    }
+    if (n >= 4) in["dwellS"] = tok[3].toInt();
+    if (!applyPatrolJson(in.as<JsonObjectConst>(), err)) Serial.printf("? %s\n", err.c_str());
+    else Serial.printf("patrol %s\n", patrol.on() ? "on" : "off");
   } else if (c == "info") {
     Serial.printf("lynx %s  %s  http://%s/  ip %s  wifi %s%s\n", kVersion, hostName().c_str(), mdnsName().c_str(),
                   staIp().length() ? staIp().c_str() : "-", wifiState(), setupMode() ? "  (setup hotspot up)" : "");
@@ -469,6 +619,9 @@ void setup() {
   follower.config().panSign = settings.followPanSign;
   follower.config().tiltSign = settings.followTiltSign;
   follower.config().restTilt = Motion::kRestTiltDeg;
+  loadPresets(presets);
+  loadPatrol(patrolSaved);
+  restartPatrol(millis());
   detectBegin();
   detectSet(settings.detect, settings.detectModel, settings.detectRange);
   netBegin();
@@ -481,6 +634,7 @@ void loop() {
   pollSerial();
   netLoop();
   pollFollow(now);
+  pollPatrol(now);
   {
     MotionLock l;
     motion.update(now);

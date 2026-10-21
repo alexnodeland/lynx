@@ -11,6 +11,9 @@
 - **Custom models (Edge Impulse):** `just capture <label>` collects training images with lynx itself, and
   `just model-add export.zip` installs an export as `model: custom` (FOMO boxes or a classifier's label). Proven on
   the board with a public export; CI builds with it.
+- **Presets and patrol:** up to 8 named positions and a patrol tour with dwell (REST, MCP, serial, and Home Assistant
+  as a preset select, a patrol switch and save/delete actions). One arbiter decides who moves the head:
+  manual > follow while it has a face > patrol. `lib/presets` has 8 native tests.
 - Fix: the demo sweep ends at the rest pose instead of lens-up.
 
 ## 0.3.0 (2026-10-20)

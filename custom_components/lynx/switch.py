@@ -28,6 +28,7 @@ class LynxSwitchDescription(SwitchEntityDescription):
 SWITCHES: tuple[LynxSwitchDescription, ...] = (
     LynxSwitchDescription(key="detection", translation_key="detection", field="enabled", section="detect"),
     LynxSwitchDescription(key="follow", translation_key="follow", field="follow", section="detect"),
+    LynxSwitchDescription(key="patrol", translation_key="patrol", field="enabled", section="patrol"),
     LynxSwitchDescription(key="vflip", translation_key="vflip", field="vflip", entity_category=EntityCategory.CONFIG),
     LynxSwitchDescription(
         key="hmirror", translation_key="hmirror", field="hmirror", entity_category=EntityCategory.CONFIG
@@ -59,6 +60,8 @@ class LynxSwitch(LynxEntity, SwitchEntity):
                 await client.set_detect(enabled=on)
             elif d.key == "follow":
                 await client.set_follow(on)
+            elif d.key == "patrol":
+                await client.set_patrol(enabled=on)
             else:
                 await client.set_camera(**{d.field: on})
         except LynxError as err:

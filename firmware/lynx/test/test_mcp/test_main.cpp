@@ -2,6 +2,7 @@
 #include <unity.h>
 
 #include <cstring>
+#include <vector>
 
 #include "mcp.h"
 
@@ -68,6 +69,30 @@ struct FakeDevice : Device {
       model = m;
     }
     if (!s["enabled"].isNull()) detectOn = s["enabled"].as<bool>();
+    return true;
+  }
+  std::vector<std::string> names;
+  bool patrolOn = false;
+  void presets(JsonObject o) override {
+    JsonArray a = o["presets"].to<JsonArray>();
+    for (auto& n : names) {
+      JsonObject p = a.add<JsonObject>();
+      p["name"] = n;
+      p["pan"] = 10;
+      p["tilt"] = 40;
+    }
+    o["patrol"]["enabled"] = patrolOn;
+  }
+  bool preset(JsonObjectConst s, std::string& err) override {
+    std::string a = s["action"] | "", n = s["name"] | "";
+    if (a == "save") { names.push_back(n); return true; }
+    for (auto it = names.begin(); it != names.end(); ++it)
+      if (*it == n) { if (a == "delete") names.erase(it); return true; }
+    err = "no preset called '" + n + "'";
+    return false;
+  }
+  bool setPatrol(JsonObjectConst s, std::string&) override {
+    patrolOn = s["enabled"].as<bool>();
     return true;
   }
   bool setFollow(JsonObjectConst s, std::string&) override {
@@ -188,9 +213,9 @@ static void test_bad_json_and_batch() {
 static void test_tools_list_names() {
   auto d = parse(call(R"({"jsonrpc":"2.0","id":5,"method":"tools/list"})", "2025-11-25"));
   JsonArray t = d["result"]["tools"];
-  const char* want[] = {"status", "look", "center", "sweep", "snapshot", "stream_url", "set_camera", "detect", "follow"};
-  TEST_ASSERT_EQUAL(9, t.size());
-  for (int i = 0; i < 9; i++) {
+  const char* want[] = {"status", "look", "center", "sweep", "snapshot", "stream_url", "set_camera", "detect", "follow", "preset", "patrol"};
+  TEST_ASSERT_EQUAL(11, t.size());
+  for (int i = 0; i < 11; i++) {
     TEST_ASSERT_EQUAL_STRING(want[i], t[i]["name"]);
     TEST_ASSERT_EQUAL_STRING("object", t[i]["inputSchema"]["type"]);
   }
@@ -265,6 +290,20 @@ static void test_detect_and_follow() {
   dev.followOn = false;
 }
 
+static void test_presets_and_patrol() {
+  call(R"({"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"preset","arguments":{"action":"save","name":"door"}}})");
+  auto d = parse(call(R"({"jsonrpc":"2.0","id":31,"method":"tools/call","params":{"name":"preset","arguments":{"action":"list"}}})"));
+  TEST_ASSERT_EQUAL_STRING("door", d["result"]["structuredContent"]["presets"][0]["name"]);
+  TEST_ASSERT_NOT_NULL(strstr(d["result"]["content"][0]["text"].as<const char*>(), "door: pan 10, tilt 40"));
+  auto r = call(R"({"jsonrpc":"2.0","id":32,"method":"tools/call","params":{"name":"preset","arguments":{"action":"go","name":"attic"}}})");
+  TEST_ASSERT_EQUAL(-32602, parse(r)["error"]["code"].as<int>());
+  d = parse(call(R"({"jsonrpc":"2.0","id":33,"method":"tools/call","params":{"name":"patrol","arguments":{"enabled":true,"dwell_s":5}}})"));
+  TEST_ASSERT_TRUE(dev.patrolOn);
+  TEST_ASSERT_EQUAL_STRING("patrolling", d["result"]["content"][0]["text"].as<std::string>().substr(0, 10).c_str());
+  dev.names.clear();
+  dev.patrolOn = false;
+}
+
 static void test_base64_padding() {
   TEST_ASSERT_EQUAL_STRING("", base64((const uint8_t*)"", 0).c_str());
   TEST_ASSERT_EQUAL_STRING("Zg==", base64((const uint8_t*)"f", 1).c_str());
@@ -286,6 +325,7 @@ int main() {
   RUN_TEST(test_snapshot_returns_image_or_tool_error);
   RUN_TEST(test_stream_url_and_camera);
   RUN_TEST(test_detect_and_follow);
+  RUN_TEST(test_presets_and_patrol);
   RUN_TEST(test_base64_padding);
   return UNITY_END();
 }

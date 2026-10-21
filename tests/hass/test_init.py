@@ -125,6 +125,29 @@ async def test_detected_unavailable_when_detection_off(hass, entry, aioclient_mo
     assert hass.states.get("sensor.lynx_42e0_detected_count").state == "unknown"
 
 
+async def test_presets_and_patrol(hass, entry, lynx):
+    await setup(hass, entry)
+    sel = hass.states.get("select.lynx_42e0_preset")
+    assert sel.attributes["options"] == ["door", "desk"]
+    assert sel.state == "desk"  # the patrol's current stop
+    assert hass.states.get("switch.lynx_42e0_patrol").state == "on"
+    await hass.services.async_call(
+        "select", "select_option", {"entity_id": "select.lynx_42e0_preset", "option": "door"}, blocking=True
+    )
+    await hass.services.async_call(
+        DOMAIN, "save_preset", {"entity_id": "camera.lynx_42e0", "name": "window", "pan": 10}, blocking=True
+    )
+    await hass.services.async_call(
+        DOMAIN, "delete_preset", {"entity_id": "camera.lynx_42e0", "name": "desk"}, blocking=True
+    )
+    await hass.services.async_call("switch", "turn_off", {"entity_id": "switch.lynx_42e0_patrol"}, blocking=True)
+    bodies = [c[2] for c in posts(lynx, "/api/presets")]
+    assert {"action": "go", "name": "door"} in bodies
+    assert {"action": "save", "name": "window", "pan": 10.0} in bodies
+    assert {"action": "delete", "name": "desk"} in bodies
+    assert posts(lynx, "/api/patrol")[-1][2] == {"enabled": False}
+
+
 async def test_camera_image(hass, entry, lynx):
     await setup(hass, entry)
     image = await async_get_image(hass, "camera.lynx_42e0")

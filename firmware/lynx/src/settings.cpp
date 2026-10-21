@@ -85,6 +85,36 @@ void saveDetect(const Settings& s) {
   p.end();
 }
 
+void loadPresets(Presets& out) {
+  Preferences p;
+  p.begin(kNs, true);
+  Preset buf[kMaxPresets];
+  size_t n = p.isKey("pre") ? p.getBytes("pre", buf, sizeof buf) : 0;
+  p.end();
+  out.load(buf, (int)(n / sizeof(Preset)));
+}
+
+void savePresets(const Presets& in) {
+  Preferences p;
+  p.begin(kNs, false);
+  p.putBytes("pre", in.data(), sizeof(Preset) * in.count());
+  p.end();
+}
+
+void loadPatrol(PatrolSaved& out) {
+  Preferences p;
+  p.begin(kNs, true);
+  if (p.isKey("pat") && p.getBytesLength("pat") == sizeof out) p.getBytes("pat", &out, sizeof out);
+  p.end();
+}
+
+void savePatrol(const PatrolSaved& in) {
+  Preferences p;
+  p.begin(kNs, false);
+  p.putBytes("pat", &in, sizeof in);
+  p.end();
+}
+
 void saveCamera(const CameraSettings& c) {
   Preferences p;
   p.begin(kNs, false);

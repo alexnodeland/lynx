@@ -24,10 +24,40 @@ async def async_setup_entry(
     async_add_entities(
         [
             LynxResolution(c),
+            LynxPresetSelect(c),
             LynxDetectSelect(c, "detect_model", "model", ["face", "cat", "custom"]),
             LynxDetectSelect(c, "detect_range", "range", ["near", "far"]),
         ]
     )
+
+
+class LynxPresetSelect(LynxEntity, SelectEntity):
+    """Go to a named position. Shows the patrol's current stop while it tours."""
+
+    _attr_translation_key = "preset"
+
+    def __init__(self, coordinator: LynxCoordinator) -> None:
+        super().__init__(coordinator, "preset")
+
+    @property
+    def options(self) -> list[str]:
+        return [p["name"] for p in self.status.get("presets", [])]
+
+    @property
+    def available(self) -> bool:
+        return super().available and bool(self.options)
+
+    @property
+    def current_option(self) -> str | None:
+        at = self.status.get("patrol", {}).get("at")
+        return at if at in self.options else None
+
+    async def async_select_option(self, option: str) -> None:
+        try:
+            self.coordinator.apply(await self.coordinator.client.preset("go", option))
+        except LynxError as err:
+            raise HomeAssistantError(f"lynx did not go to {option}: {err}") from err
+        await self.coordinator.async_request_refresh()
 
 
 class LynxDetectSelect(LynxEntity, SelectEntity):

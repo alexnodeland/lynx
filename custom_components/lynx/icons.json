@@ -31,6 +31,9 @@
       },
       "detect_range": {
         "default": "mdi:signal-distance-variant"
+      },
+      "preset": {
+        "default": "mdi:map-marker-star"
       }
     },
     "switch": {
@@ -45,6 +48,9 @@
       },
       "follow": {
         "default": "mdi:target-account"
+      },
+      "patrol": {
+        "default": "mdi:routes"
       }
     },
     "sensor": {
@@ -64,6 +70,12 @@
   "services": {
     "look": {
       "service": "mdi:eye-arrow-right-outline"
+    },
+    "save_preset": {
+      "service": "mdi:map-marker-plus"
+    },
+    "delete_preset": {
+      "service": "mdi:map-marker-remove"
     }
   }
 }

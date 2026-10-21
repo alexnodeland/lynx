@@ -45,6 +45,10 @@ class Device {
   virtual void detections(JsonObject out) = 0;
   virtual bool setDetect(JsonObjectConst settings, std::string& error) = 0;  // {enabled, model}
   virtual bool setFollow(JsonObjectConst settings, std::string& error) = 0;  // {enabled}
+  // named positions and the patrol that tours them
+  virtual void presets(JsonObject out) = 0;
+  virtual bool preset(JsonObjectConst args, std::string& error) = 0;     // {action, name, pan?, tilt?}
+  virtual bool setPatrol(JsonObjectConst args, std::string& error) = 0;  // {enabled, presets, dwellS}
 };
 
 constexpr const char* kModernVersion = "2026-07-28";

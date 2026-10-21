@@ -38,6 +38,11 @@ void detectionsJson(JsonObject out);  // the latest frame's boxes and a summary
 bool applyDetectJson(JsonObjectConst in, std::string& error);  // {enabled, model}
 bool applyFollowJson(JsonObjectConst in, std::string& error);  // {enabled, panSign, tiltSign}
 // A manual move pauses follow for a few seconds, so the head goes where you asked.
-void pauseFollow(uint32_t ms = 5000);
+void pauseFollow(uint32_t ms = 5000);  // a manual move: claims the head (lib/presets Arbiter)
+
+// Presets + patrol. Each takes the lock and saves to NVS.
+void presetsJson(JsonObject out);
+bool presetAction(JsonObjectConst in, std::string& error);  // {action: save|go|delete, name, pan?, tilt?}
+bool applyPatrolJson(JsonObjectConst in, std::string& error);  // {enabled, presets: [names], dwellS}
 
 }  // namespace lynx

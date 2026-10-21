@@ -105,6 +105,14 @@ class LynxClient:
     async def set_follow(self, enabled: bool) -> dict[str, Any]:
         return await self._json("POST", "/api/follow", json={"enabled": enabled})
 
+    async def preset(self, action: str, name: str, **extra: Any) -> dict[str, Any]:
+        """action: save | go | delete"""
+        return await self._json("POST", "/api/presets", json={"action": action, "name": name, **extra})
+
+    async def set_patrol(self, **settings: Any) -> dict[str, Any]:
+        """{enabled, presets: [names], dwellS}"""
+        return await self._json("POST", "/api/patrol", json=settings)
+
     async def snapshot(self) -> bytes:
         resp = await self._request("GET", "/snapshot.jpg")
         return await resp.read()

@@ -18,7 +18,17 @@ except ImportError:  # pragma: no cover
     import voluptuous as vol
 
 from .api import LynxAuthError, LynxClient, LynxError
-from .const import ATTR_DURATION, ATTR_PAN, ATTR_TILT, CONF_TOKEN, DOMAIN, SERVICE_LOOK
+from .const import (
+    ATTR_DURATION,
+    ATTR_NAME,
+    ATTR_PAN,
+    ATTR_TILT,
+    CONF_TOKEN,
+    DOMAIN,
+    SERVICE_DELETE_PRESET,
+    SERVICE_LOOK,
+    SERVICE_SAVE_PRESET,
+)
 from .coordinator import LynxConfigEntry, LynxCoordinator
 
 PLATFORMS: list[Platform] = [
@@ -38,20 +48,28 @@ LOOK_SCHEMA = {
     vol.Optional(ATTR_TILT): vol.All(vol.Coerce(float), vol.Range(min=-60, max=60)),
     vol.Optional(ATTR_DURATION): vol.All(vol.Coerce(int), vol.Range(min=0, max=10000)),
 }
+SAVE_PRESET_SCHEMA = {
+    vol.Required(ATTR_NAME): vol.All(cv.string, vol.Length(min=1, max=15)),
+    vol.Optional(ATTR_PAN): vol.All(vol.Coerce(float), vol.Range(min=-90, max=90)),
+    vol.Optional(ATTR_TILT): vol.All(vol.Coerce(float), vol.Range(min=-60, max=60)),
+}
+DELETE_PRESET_SCHEMA = {vol.Required(ATTR_NAME): cv.string}
+# (action, schema, camera method)
+CAMERA_ACTIONS = (
+    (SERVICE_LOOK, LOOK_SCHEMA, "async_look"),
+    (SERVICE_SAVE_PRESET, SAVE_PRESET_SCHEMA, "async_save_preset"),
+    (SERVICE_DELETE_PRESET, DELETE_PRESET_SCHEMA, "async_delete_preset"),
+)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the lynx.look action (targets a lynx camera entity)."""
     if not hasattr(service, "async_register_platform_entity_service"):
         return True  # older Home Assistant: camera.py registers it per platform instead
-    service.async_register_platform_entity_service(
-        hass,
-        DOMAIN,
-        SERVICE_LOOK,
-        entity_domain=CAMERA_DOMAIN,
-        schema=LOOK_SCHEMA,
-        func="async_look",
-    )
+    for name, schema, func in CAMERA_ACTIONS:
+        service.async_register_platform_entity_service(
+            hass, DOMAIN, name, entity_domain=CAMERA_DOMAIN, schema=schema, func=func
+        )
     return True
 
 

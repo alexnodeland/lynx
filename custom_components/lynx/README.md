@@ -32,9 +32,10 @@ It runs entirely on your LAN: no cloud, no MQTT broker.
 | `sensor.…_detected_count` | how many are in view |
 | `switch.…_detection`, `switch.…_follow` | on-device detection, and follow mode (keeps the nearest face in frame) |
 | `select.…_detect`, `select.…_detection_range` | faces or cat faces; near or far |
+| `select.…_preset`, `switch.…_patrol` | go to a named position; tour them on a loop |
 | `sensor.…_wi_fi_signal`, `sensor.…_last_boot`, `sensor.…_free_memory` | diagnostics |
 
-Plus the **`lynx.look`** action, which targets the camera:
+Plus the actions **`lynx.look`**, **`lynx.save_preset`** and **`lynx.delete_preset`**, which target the camera:
 
 ```yaml
 action: lynx.look

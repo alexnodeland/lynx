@@ -109,6 +109,9 @@
           "near": "Near",
           "far": "Far"
         }
+      },
+      "preset": {
+        "name": "Preset"
       }
     },
     "sensor": {
@@ -137,6 +140,9 @@
       },
       "follow": {
         "name": "Follow"
+      },
+      "patrol": {
+        "name": "Patrol"
       }
     }
   },
@@ -156,6 +162,34 @@
         "duration": {
           "name": "Duration",
           "description": "Milliseconds for the move; leave empty to pick from the distance."
+        }
+      }
+    },
+    "save_preset": {
+      "name": "Save preset",
+      "description": "Saves the camera's current position (or the one given) under a name.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "1-15 characters: a-z, 0-9, - and _."
+        },
+        "pan": {
+          "name": "Pan",
+          "description": "Optional; defaults to where the head is now."
+        },
+        "tilt": {
+          "name": "Tilt",
+          "description": "Optional; defaults to where the head is now."
+        }
+      }
+    },
+    "delete_preset": {
+      "name": "Delete preset",
+      "description": "Deletes a named position.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "The preset to delete."
         }
       }
     }

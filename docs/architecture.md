@@ -60,7 +60,7 @@ flowchart TB
 ```
 
 - **Pure logic lives in `lib/`** (motion, MCP, auth, network plan, follow). It has no Arduino includes and
-  runs as native unit tests on every push: 49 of them.
+  runs as native unit tests on every push: 58 of them.
 - **The HTTP servers run in their own FreeRTOS tasks**, so they reach the motion core only through a
   recursive mutex. The stream has its own server, so a viewer can never block a control request.
 - **Requests from the HTTP task that change Wi-Fi** (joining from the setup page) are handed to the
