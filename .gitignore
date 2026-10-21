@@ -9,3 +9,8 @@ __pycache__/
 snapshot.jpg
 .env
 datasets/
+.cache/
+*.route.log
+*.kicad_prl
+*-backups/
+fp-info-cache

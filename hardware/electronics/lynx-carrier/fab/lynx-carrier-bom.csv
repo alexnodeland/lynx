@@ -1,0 +1,7 @@
+"Designator","Value","Footprint","MPN","LCSC","Qty"
+"C1","470u 6.3V","Capacitor_THT:CP_Radial_D6.3mm_P2.50mm","Panasonic EEU-FR0J471","","1"
+"C2","100n","Capacitor_SMD:C_0603_1608Metric","Samsung CL10B104KO8NNNC","C14663","1"
+"J1","XIAO lead","Connector_JST:JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal","JST SM04B-SRSS-TB","C160390","1"
+"J2","PAN servo","Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical","2.54 mm 1x3 header","","1"
+"J3","TILT servo","Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical","2.54 mm 1x3 header","","1"
+"R1,R2","220","Resistor_SMD:R_0603_1608Metric","Yageo RC0603FR-07220RL","C22962","2"

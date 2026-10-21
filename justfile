@@ -127,6 +127,16 @@ hass-install config:
 web-dev:
     cd web && npm run dev
 
+# carrier PCB: regenerate the KiCad project, route it, check it (ERC + DRC) and write the fab outputs
+pcb:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    jar=.cache/freerouting-2.4.1.jar
+    [ -f "$jar" ] || { mkdir -p .cache; curl -fsSL -o "$jar" https://github.com/freerouting/freerouting/releases/download/v2.4.1/freerouting-2.4.1.jar; }
+    kpy="${KICAD_PYTHON:-$HOME/Applications/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3.9}"
+    [ -x "$kpy" ] || kpy=/Applications/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3.9
+    cd hardware/electronics/lynx-carrier && "$kpy" make_carrier.py
+
 # production build (copies the firmware image in for the web flasher when it exists)
 web-build:
     if [ -f {{fw}}/.pio/build/xiao/lynx.bin ]; then cp {{fw}}/.pio/build/xiao/lynx.bin web/public/flash/lynx.bin; fi
