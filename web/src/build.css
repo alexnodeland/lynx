@@ -5,8 +5,6 @@ body.guide #scene { cursor: grab; touch-action: none; }
 body.guide #scene:active { cursor: grabbing; }
 
 .hud nav { gap: 10px; }
-.key.small.here .cap { background: var(--signal); }
-.key.small.here .cap::before { background: var(--signal-soft); }
 
 #guide { position: fixed; z-index: 12; left: clamp(16px, 4vw, 64px); top: 96px; bottom: 112px; display: flex; align-items: center;
   pointer-events: none; }

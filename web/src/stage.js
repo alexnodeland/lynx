@@ -15,6 +15,7 @@ import { N8AOPass } from "n8ao";
 import { restyle, cableMaterial } from "./materials.js";
 import { DepthOfFieldPass } from "./dof.js";
 import { siliconeMat, addLegs, MAT_THICKNESS } from "./bench.js";
+import { solderingStation, ironHolder, ironCable, spool, caliper } from "./props.js";
 
 export const MM = 0.001;
 // Blender (z-up, mm) -> three (y-up, m)
@@ -27,8 +28,7 @@ export async function createStage({ canvas, onProgress } = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   // phones: fewer pixels and no AO/depth-of-field, so every frame lands inside the scroll's frame budget
   const TOUCH = matchMedia("(pointer: coarse)").matches;
-  renderer.setPixelRatio(Math.min(devicePixelRatio, TOUCH ? 1.25 : 1.5));
-  renderer.setSize(canvas.clientWidth || innerWidth, canvas.clientHeight || innerHeight, false);   // CSS sizes the canvas (100lvh)
+  const MAX_RATIO = TOUCH ? 1.25 : 1.5;
   renderer.toneMapping = THREE.NeutralToneMapping;       // keeps the mat's blue and the oak's warmth saturated
   renderer.toneMappingExposure = 0.85;
   renderer.shadowMap.enabled = true;
@@ -53,20 +53,19 @@ export async function createStage({ canvas, onProgress } = {}) {
   key.shadow.normalBias = 0.0004;
   key.shadow.radius = 5;
   scene.add(key);
-  // the status LED's spill: it sits inside the lid and point lights cast no shadow here, so it is kept
-  // faint and short, or it shines straight through the shell onto the yoke. Rides on the head, see below.
-  const ledLight = new THREE.PointLight(0x40ff88, 0, 0.035, 2);
 
   // ------------------------------------------------------------------ loading
   const manager = new THREE.LoadingManager();
   manager.onProgress = (_, done, total) => onProgress?.(done / total);
   const draco = new DRACOLoader(manager).setDecoderPath("./draco/");
   const gltf = new GLTFLoader(manager).setDRACOLoader(draco);
-  const [lynx, set, rig, env] = await Promise.all([
+  const SCANS = ["multimeter", "pliers", "tape"];   // Poly Haven CC0 scans, public/assets/props
+  const [lynx, set, rig, env, scans] = await Promise.all([
     gltf.loadAsync("./assets/lynx.glb"),
     gltf.loadAsync("./assets/set.glb"),
     fetch("./assets/rig.json").then((r) => r.json()),
     new HDRLoader(manager).loadAsync("./assets/workshop_512.hdr"),
+    Promise.all(SCANS.map((n) => gltf.loadAsync(`./assets/props/${n}.glb`))),
     // the mat's and the base's print is drawn with the page's fonts
     document.fonts.load('600 16px "Martian Mono"'), document.fonts.load("800 16px Archivo"),
   ]);
@@ -86,6 +85,57 @@ export async function createStage({ canvas, onProgress } = {}) {
   const lift = mat.position.y + MAT_THICKNESS - set.scene.getObjectByName("ESDMat").position.y;
   set.scene.traverse((o) => { if (/^(Chip|Caliper)/.test(o.name)) o.position.y += lift; });
   for (const n of ["Chip0", "Chip1", "Chip2"]) addLegs(set.scene.getObjectByName(n), setMats.get("solder"));
+
+  // The props, at product-shot detail (props.js), stand in for set.glb's placeholder blocks, on the desk.
+  const deskY = set.scene.getObjectByName("Desk").position.y;
+  set.scene.traverse((o) => { if (/^(Station|Iron|SolderSpool|WireSpool|Caliper)/.test(o.name)) o.visible = false; });
+  const calip = caliper();
+  calip.position.set(0.13, mat.position.y + MAT_THICKNESS, 0.06);
+  calip.rotation.y = 0.24;
+  set.scene.add(calip);
+  const station = solderingStation();
+  station.position.set(0.62, deskY, -0.64);
+  station.rotation.y = -0.35;
+  const holder = ironHolder();
+  holder.position.set(0.715, deskY, -0.52);
+  holder.rotation.y = -0.5;
+  set.scene.add(station, holder);
+  set.scene.updateMatrixWorld(true);
+  set.scene.add(ironCable(holder.userData.cableStart(), station.localToWorld(station.userData.socket.clone()), deskY));
+  const SPOOLS = [
+    { at: [-0.25, 0, -0.17], radius: 0.032, height: 0.034, core: 0.0285, hole: 0.011, flange: 0x1f8c47, wire: "solder", turns: 34,
+      label: ["SOLDER WIRE", "Sn63 Pb37 · ø0.8 mm", "250 g · rosin core"], band: "#1f8c47" },
+    { at: [-0.32, 0, -0.07], radius: 0.045, height: 0.026, core: 0.04, hole: 0.012, flange: 0xe6e6e2, wire: "copper", turns: 26,
+      label: ["ENAMELLED COPPER", "0.5 mm · 24 AWG", "500 g"], band: "#c8743e" },
+    { at: [-0.32, 0.026, -0.07], radius: 0.045, height: 0.026, core: 0.04, hole: 0.012, flange: 0xe6e6e2, wire: "blue", turns: 18,
+      label: ["HOOK-UP WIRE", "22 AWG · stranded", "30 m · blue"], band: "#1f45a6" },
+    { at: [-0.21, 0, -0.29], radius: 0.05, height: 0.03, core: 0.045, hole: 0.013, flange: 0xe6e6e2, wire: "copper", turns: 40,
+      label: ["ENAMELLED COPPER", "0.3 mm · 28 AWG", "250 g"], band: "#c8743e" },
+  ];
+  // scanned props (Poly Haven, CC0): an analogue multimeter and a tape measure at the back left with the
+  // spools, out of focus behind the product, and pliers on the mat, clear of the product's shots
+  const matTop = mat.position.y + MAT_THICKNESS;
+  const PLACE = {
+    multimeter: { at: [-0.46, deskY, -0.5], turn: 0.55 },
+    pliers: { at: [0.215, matTop + 0.009, -0.035], turn: 0.55, lie: true },
+    tape: { at: [-0.1, deskY, -0.31], turn: 0.5 },
+  };
+  SCANS.forEach((n, i) => {
+    const { at, turn, lie } = PLACE[n], s = scans[i].scene;
+    s.traverse((o) => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
+    const prop = new THREE.Group();
+    if (lie) s.rotation.x = -Math.PI / 2;            // scanned standing up: lay it on its side
+    prop.add(s);
+    prop.position.set(...at);
+    prop.rotation.y = turn;
+    set.scene.add(prop);
+  });
+  SPOOLS.forEach(({ at: [x, y, z], ...spec }, i) => {
+    const s = spool(spec);
+    s.position.set(x, deskY + y, z);
+    s.rotation.y = 0.9 + i * 1.7;                    // labels facing different ways
+    set.scene.add(s);
+  });
   // a long workbench: the desk runs out of frame instead of ending at the room
   const desk = set.scene.getObjectByName("Desk");
   desk.castShadow = false;
@@ -122,9 +172,10 @@ export async function createStage({ canvas, onProgress } = {}) {
   const LIFT_MM = 22;
 
   function setLed(amount) {
+    // the LED and its light pipe glow (and bloom); no light is cast: from inside the shell, with no
+    // shadow, a point light only tinted the parts around the head green
     led.emissiveIntensity = amount * 6;
     lightPipe.emissiveIntensity = amount * 1.2;
-    ledLight.intensity = amount * 0.003;
   }
 
   function applyParts() {
@@ -156,8 +207,7 @@ export async function createStage({ canvas, onProgress } = {}) {
   shell.color.set(0xffffff);                         // the print carries the shell's colour
   shell.map = printMap(8, 3.2, headPrint, anisotropy);
   printOn(holders.Base, node("Base"), new THREE.Vector3(0.0225, 0.003, 0.2), 8, 3.2, shell, 0.0003);
-  tilt.add(ledLight);
-  ledLight.position.copy(tilt.worldToLocal(b2t(...rig.led)));
+
   const groupNode = { tilt, pan, fixed: node("Root") };
   function anchorPoints(list) {
     // waypoint -> its rig group's local frame, captured at rest so it follows that group afterwards
@@ -235,7 +285,7 @@ export async function createStage({ canvas, onProgress } = {}) {
     // writes depth so depth of field keeps it sharp at the pivot; hidden while faded out (see setArcs)
     return new THREE.Line(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0 }));
   }
-  const panArc = arc(0.05, -Math.PI / 2 - Math.PI / 2, -Math.PI / 2 + Math.PI / 2, 0x7fd6a4);
+  const panArc = arc(0.05, -Math.PI / 2 - Math.PI / 2, -Math.PI / 2 + Math.PI / 2, 0x5ff0a1);
   panArc.position.copy(b2t(rig.pivots.pan_x, rig.pivots.cy, rig.pivots.floor_z + 26));
   scene.add(panArc);
   const tiltArc = arc(0.045, -Math.PI / 3, Math.PI / 3, 0xf0c48a);
@@ -278,10 +328,48 @@ export async function createStage({ canvas, onProgress } = {}) {
   composer.addPass(new OutputPass());
   if (!TOUCH) composer.addPass(new SMAAPass(w, h));
 
-  // Adaptive resolution: frames rendered back to back are timed, and if they run below ~35 fps for a
-  // second and a half the pixel ratio steps down (to 0.75 at the lowest). It never steps back up within
-  // a visit: behind vsync, a fast GPU and a just-fast-enough one look the same.
-  let lastFrame = -Infinity, slowFor = 0;
+  // ------------------------------------------------------------------ size
+  // The drawing buffer follows the canvas's CSS box (100vw x 100lvh), observed directly. Measuring it
+  // once at start-up could catch the canvas before the stylesheet applied (the default 300 x 150,
+  // stretched and blurry until the window was resized), and a window resize misses zoom, a move to a
+  // screen of another density and a page restored from the back/forward cache.
+  const STEPS = [1, 0.85, 0.7];                      // adaptive-resolution scales, see govern()
+  let step = 0;
+  const resizeListeners = new Set();
+  function fit() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    const ratio = Math.max(0.75, Math.min(devicePixelRatio, MAX_RATIO) * STEPS[step]);
+    renderer.setPixelRatio(ratio);
+    renderer.setSize(w, h, false);
+    composer.setPixelRatio(ratio);
+    composer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    for (const listener of resizeListeners) listener(w, h);
+  }
+  const onResize = (listener) => resizeListeners.add(listener);
+  new ResizeObserver(fit).observe(canvas);
+  (function watchDensity() {
+    matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener("change", () => { fit(); watchDensity(); }, { once: true });
+  })();
+  addEventListener("pageshow", (e) => { if (e.persisted) fit(); });
+  fit();
+
+  // Adaptive resolution. Frames drawn back to back are timed once the page has settled (its first
+  // seconds compile shaders and upload textures, which would read as a slow GPU). Below ~35 fps for two
+  // seconds the resolution steps down; at a steady 50+ fps it steps back up, waiting twice as long after
+  // every step down so it never see-saws.
+  let settledAt = Infinity, lastFrame = -Infinity, slowFor = 0, fastFor = 0, upAfter = 8000;
+  function govern(time) {
+    if (settledAt === Infinity) settledAt = time + 4000;   // four seconds from the first frame
+    const dt = time - lastFrame;
+    lastFrame = time;
+    if (time < settledAt || dt > 100) return;        // warming up, or the first frame after idling
+    if (dt > 28) { slowFor += dt; fastFor = 0; } else { slowFor = Math.max(0, slowFor - dt); fastFor = dt < 20 ? fastFor + dt : 0; }
+    if (slowFor > 2000 && step < STEPS.length - 1) { step++; upAfter *= 2; slowFor = fastFor = 0; fit(); }
+    else if (fastFor > upAfter && step > 0) { step--; slowFor = fastFor = 0; fit(); }
+  }
 
   // The key light and the bench never move, so the shadow map is only redrawn when the product does
   // (pan, tilt, lift, a part flying in) or a page says parts were shown or hidden (invalidateShadows).
@@ -298,17 +386,7 @@ export async function createStage({ canvas, onProgress } = {}) {
   }
 
   function render(time = performance.now()) {
-    const dt = time - lastFrame;
-    lastFrame = time;
-    if (dt < 100) {                                  // a consecutive frame, not the first after idling
-      slowFor = dt > 28 ? slowFor + dt : Math.max(0, slowFor - dt);
-      const ratio = renderer.getPixelRatio();
-      if (slowFor > 1500 && ratio > 0.75) {
-        slowFor = 0;
-        renderer.setPixelRatio(ratio - 0.25);
-        composer.setPixelRatio(ratio - 0.25);
-      }
-    }
+    govern(time);
     if (partsMoved()) renderer.shadowMap.needsUpdate = true;
     composer.render();
   }
@@ -316,18 +394,19 @@ export async function createStage({ canvas, onProgress } = {}) {
   return {
     renderer, scene, camera, key, lynx, set, rig, mats, node, pan, tilt, holders, restPos, setLed,
     EXPL, explode, state, LIFT_MM, applyParts, groupNode, cables, updateCables, tmp, setArcs,
-    composer, render, invalidateShadows, ao, dof,
+    composer, render, onResize, invalidateShadows, ao, dof,
   };
 }
 
 // A print laid flat on a part: a ray from the front finds the face, the w x h mm print sits on it, lifted
 // clear of the surface, and rides with the part's holder (explode, pan and tilt included).
-function printOn(holder, part, from, w, h, material, lift = 0.00005) {
-  const hit = new THREE.Raycaster(from, new THREE.Vector3(0, 0, -1)).intersectObject(part, true)[0];
+function printOn(holder, part, from, w, h, material, lift = 0.00005, toward = new THREE.Vector3(0, 0, -1), twist = 0) {
+  const hit = new THREE.Raycaster(from, toward).intersectObject(part, true)[0];
   const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
   const print = new THREE.Mesh(new THREE.PlaneGeometry(w * MM, h * MM), material);
   print.position.copy(hit.point).addScaledVector(normal, lift);
   print.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+  print.rotateZ(twist);
   holder.attach(print);
 }
 

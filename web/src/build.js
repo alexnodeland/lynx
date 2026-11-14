@@ -11,7 +11,7 @@ import { GUIDE, PRINTED } from "./guide.js";
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const bar = document.querySelector("#loader .bar span");
 const {
-  renderer, scene, camera, rig, pan, tilt, holders, restPos, setLed, cables, updateCables, composer, render, invalidateShadows, dof, LIFT_MM,
+  renderer, scene, camera, rig, pan, tilt, holders, restPos, setLed, cables, updateCables, render, onResize, invalidateShadows, dof, LIFT_MM,
 } = await createStage({ canvas: document.getElementById("scene"), onProgress: (f) => (bar.style.width = `${100 * f}%`) });
 
 // ------------------------------------------------------------------ parts: solid, arriving, ghost, hidden
@@ -44,9 +44,9 @@ function look(k, mode) {
 }
 
 // highlight: a pulsing additive overlay on the parts a step is about, and a glowing cable while it's routed
-const glow = new THREE.MeshBasicMaterial({ color: 0x7fd6a4, transparent: true, opacity: 0, depthWrite: false,
+const glow = new THREE.MeshBasicMaterial({ color: 0x5ff0a1, transparent: true, opacity: 0, depthWrite: false,
   blending: THREE.AdditiveBlending });
-const cableGlow = new THREE.MeshStandardMaterial({ color: 0x7fd6a4, emissive: 0x7fd6a4, emissiveIntensity: 1.4, roughness: 0.4 });
+const cableGlow = new THREE.MeshStandardMaterial({ color: 0x5ff0a1, emissive: 0x5ff0a1, emissiveIntensity: 1.4, roughness: 0.4 });
 const cableMat = cables[0].material;
 let glowTl = null;
 function highlight(keys) {
@@ -133,18 +133,16 @@ function flyTo({ target, pos }, dur = 1.1) {
 }
 
 // the card covers part of the screen: shift the projection so the model sits in the free space
+// (the stage has already sized the renderer and the camera's aspect to the canvas)
 function layout() {
-  const w = innerWidth, h = innerHeight;
-  renderer.setSize(w, h);
-  composer.setSize(w, h);
-  camera.aspect = w / h;
+  const { clientWidth: w, clientHeight: h } = renderer.domElement;
   const card = document.getElementById("card").getBoundingClientRect();
   if (w > 760) camera.setViewOffset(w, h, -Math.min(card.right * 0.5, w * 0.22), 0, w, h);
   else camera.setViewOffset(w, h, 0, Math.min(card.height * 0.45, h * 0.24), w, h);
   camera.updateProjectionMatrix();
   invalidate();
 }
-addEventListener("resize", layout);
+onResize(layout);
 
 // ------------------------------------------------------------------ steps
 const $ = (id) => document.getElementById(id);

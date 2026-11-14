@@ -134,7 +134,7 @@ body::after { opacity: .07; mix-blend-mode: soft-light;
 .beat[data-beat="assembly"] { min-height: 170vh; }
 
 /* ---------------------------------------------------------------- modules: datasheet panels on perfboard */
-.slab { --rx: 0deg; --ry: 0deg; --mx: 30%; --my: 20%; position: relative; pointer-events: auto; width: min(430px, 88vw);
+.slab { --rx: 0deg; --ry: 0deg; --mx: 30%; --my: 20%; position: relative; pointer-events: auto; width: min(450px, 88vw);
   perspective: 1100px; opacity: 0; transform: translateY(36px); transition: opacity .8s var(--ease), transform .8s var(--ease); }
 .slab.in { opacity: 1; transform: none; }
 .slab.left { margin-right: auto; } .slab.right { margin-left: auto; }
@@ -149,7 +149,7 @@ body::after { opacity: .07; mix-blend-mode: soft-light;
 .slab h1, .slab h2 { transform: translateZ(30px); }
 .slab p, .slab .stats { transform: translateZ(14px); }
 .slab .eyebrow { transform: translateZ(20px); }
-.slab h1 { font: 760 clamp(32px, 3vw, 44px)/1.0 var(--display); font-stretch: 118%; letter-spacing: -0.035em; margin: 0 0 16px; }
+.slab h1 { font: 760 clamp(30px, 2.7vw, 40px)/1.0 var(--display); font-stretch: 118%; letter-spacing: -0.035em; margin: 0 0 16px; }
 .slab h2 { font: 720 clamp(23px, 2vw, 29px)/1.06 var(--display); font-stretch: 114%; letter-spacing: -0.03em; margin: 0 0 12px; }
 .slab p { color: var(--muted); font-size: 15px; line-height: 1.62; }
 .slab p em { font-style: normal; color: var(--ink); }
@@ -192,6 +192,8 @@ body::after { opacity: .07; mix-blend-mode: soft-light;
 .key.accent:hover .cap { background: #b9ffd8; }
 .key.accent:hover .cap::after { color: var(--signal-ink); }
 .key.small { --c: 7px; }
+.key.small.here .cap { background: var(--signal); }                 /* the page you're on */
+.key.small.here .cap::before { background: var(--signal-soft); }
 .key.small .cap { min-width: 0; padding: 10px 14px 9px; gap: 0; font: 600 10.5px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
 .key.small .cap::after { display: none; }
 
@@ -239,15 +241,18 @@ body::after { opacity: .07; mix-blend-mode: soft-light;
 .steps li.now { transform: translateX(6px); }
 @media (prefers-reduced-motion: reduce) { .chat li, .entities li, .flow li { opacity: 1; transform: none; } }
 
-/* Phones and portrait tablets: the product is framed in the top half (main.js, aspect < 0.85), and each
-   chapter's module docks to the bottom, above the rail, for as long as its chapter plays, so it never
-   slides over the product. */
+/* Phones and portrait tablets: the product is framed in the top half (main.js, aspect < 0.85), and the
+   modules ride the scroll. Each docks above the rail for its chapter; then the next one, a rail's height
+   behind it, pushes it up, 1:1 with the finger, and it fades as it rises over the product (main.js). */
 @media (max-width: 760px), (max-aspect-ratio: 17/20) {
   .hud { padding: 16px 18px 20px; }
   .brand { font-size: 19px; }
   .brand .rev { display: none; }
-  .beat { align-items: flex-end; padding: 0 12px; }
+  /* a module docks from when its chapter rises into view until the chapter's end (a rail's height of
+     padding) reaches the screen's bottom and carries it up; main.js times the scene to the same span */
+  .beat { align-items: flex-end; padding: 0 12px calc(86px + env(safe-area-inset-bottom)); }
   .slab { position: sticky; bottom: calc(86px + env(safe-area-inset-bottom)); width: min(100%, 560px); margin-inline: auto; }
+  .slab, .slab.in { opacity: 1; transform: none; transition: none; }   /* motion follows the scroll, not a timer */
   .slab.left, .slab.right { margin-inline: auto; }
   .slab .face { background-color: rgba(10,12,15,.88); padding: 14px 16px 16px; }
   .slab .eyebrow { margin-bottom: 12px; padding-bottom: 10px; font-size: 9px; }
@@ -295,6 +300,7 @@ body::after { opacity: .07; mix-blend-mode: soft-light;
   .brand .rev { display: none; }
   .beat { padding: 0 24px; align-items: flex-start; }
   .slab { width: min(370px, 46vw); position: sticky; top: 56px; }   /* docked under the header for its chapter */
+  .slab, .slab.in { opacity: 1; transform: none; transition: none; }
   .slab .face { padding: 12px 14px 14px; }
   .slab .eyebrow { margin-bottom: 8px; padding-bottom: 8px; font-size: 9px; }
   .slab h1 { font-size: 23px; margin-bottom: 8px; }

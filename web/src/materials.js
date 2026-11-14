@@ -58,7 +58,7 @@ const LIBRARY = {
   spool_white: () => P({ color: 0xe6e6e2, roughness: 0.45 }),
   spool_green: () => P({ color: 0x1f8c47, roughness: 0.4 }),
   copper: () => P({ color: 0xf2a37a, metalness: 1, roughness: 0.26 }),
-  solder: () => P({ color: 0xd4d5d9, metalness: 1, roughness: 0.24 }),
+  solder: () => P({ color: 0xcfd2d7, metalness: 1, roughness: 0.3 }),
 };
 // parts that share a glTF material with others but get their own finish
 const BY_NODE = { PanBase: "anodised_gunmetal", PanCap: "anodised_gunmetal" };

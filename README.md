@@ -9,9 +9,9 @@
   <a href="hardware/production/BOM.md#cost"><img alt="Parts cost" src="https://img.shields.io/badge/parts-~%2443-555"></a>
   <a href="https://github.com/alexnodeland/lynx/actions/workflows/firmware.yml"><img alt="Firmware" src="https://github.com/alexnodeland/lynx/actions/workflows/firmware.yml/badge.svg"></a>
   <a href="custom_components/lynx"><img alt="Home Assistant" src="https://github.com/alexnodeland/lynx/actions/workflows/hass.yml/badge.svg"></a>
-  <a href="firmware/lynx#mcp"><img alt="MCP server" src="https://img.shields.io/badge/MCP-server-7fd6a4"></a>
+  <a href="firmware/lynx#mcp"><img alt="MCP server" src="https://img.shields.io/badge/MCP-server-5ff0a1"></a>
   <a href="firmware/lynx"><img alt="PlatformIO" src="https://img.shields.io/badge/PlatformIO-ESP32--S3-f5822a?logo=platformio&logoColor=white"></a>
-  <a href="web"><img alt="three.js" src="https://img.shields.io/badge/three.js-0.170-000?logo=threedotjs"></a>
+  <a href="web"><img alt="three.js" src="https://img.shields.io/badge/three.js-0.187-000?logo=threedotjs"></a>
   <br>
   <a href="LICENSES/CERN-OHL-S-2.0.txt"><img alt="Hardware licence" src="https://img.shields.io/badge/hardware-CERN--OHL--S--2.0-blue"></a>
   <a href="LICENSES/MIT.txt"><img alt="Software licence" src="https://img.shields.io/badge/firmware%20%2B%20web-MIT-green"></a>

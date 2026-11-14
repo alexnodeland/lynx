@@ -1,7 +1,7 @@
 # lynx site
 
 [![Pages deploy](https://img.shields.io/github/actions/workflow/status/alexnodeland/lynx/pages.yml?branch=main&label=site&logo=github)](https://github.com/alexnodeland/lynx/actions/workflows/pages.yml)
-[![three.js](https://img.shields.io/badge/three.js-0.170-000?logo=threedotjs)](package.json)
+[![three.js](https://img.shields.io/badge/three.js-0.187-000?logo=threedotjs)](package.json)
 [![Vite](https://img.shields.io/badge/Vite-6-646cff?logo=vite&logoColor=white)](package.json)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](../LICENSES/MIT.txt)
 
@@ -32,12 +32,15 @@ After re-exporting `lynx.glb` from Blender, run `npm run optimize-model`: it sim
 | `src/stage.js` | the shared scene: renderer, light, set, product rig, cables, post-processing |
 | `src/dof.js` | depth of field: a single gather pass over the AO pass's depth |
 | `src/bench.js` | the silicone repair mat, built procedurally |
+| `src/props.js` | the soldering station, iron, spools and caliper, built procedurally |
+| `src/flash.css` | the web flasher's layout (it shares `style.css` with the other pages) |
 | `src/guide.js` | the build guide's steps (what arrives, from where, what you need) |
 | `src/build.js` | the build guide: ghosts, fly-ins, framing, orbit, step rail, `#step` links |
 | `src/main.js` | the landing page: scroll timeline, shots, chrome |
 | `src/materials.js` | materials |
 | `src/style.css` | styles |
 | `public/assets/` | `lynx.glb` (the model), `set.glb` (the desk set), `rig.json`, `workshop_512.hdr` ([Artist Workshop](https://polyhaven.com/a/artist_workshop) from Poly Haven, CC0, halved to 512 px) |
+| `public/assets/props/` | scanned props from Poly Haven (CC0), compressed with gltf-transform: [Retro Multimeter](https://polyhaven.com/a/retro_multimeter), [Pliers](https://polyhaven.com/a/pliers), [Measuring Tape 01](https://polyhaven.com/a/measuring_tape_01) |
 | `public/draco/` | Draco decoder for the compressed glTF |
 
 ## Deploy
