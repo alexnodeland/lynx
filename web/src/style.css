@@ -17,6 +17,9 @@ body { overflow-x: hidden; -webkit-font-smoothing: antialiased; }
 .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
 
 #scene { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100lvh; display: block; z-index: 0; }
+/* lens vignette over the scene, under the chrome: free on the compositor, unlike a post pass */
+body::before { content: ""; position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(120% 95% at 50% 45%, transparent 55%, rgba(4,4,6,.55) 100%); }
 
 /* ---------------------------------------------------------------- loader: an iris opening */
 #loader { position: fixed; inset: 0; z-index: 40; display: grid; place-content: center; justify-items: center; gap: 16px;

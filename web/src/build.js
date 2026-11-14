@@ -5,13 +5,13 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import gsap from "gsap";
-import { createStage, b2l, b2t, REST_TILT } from "./stage.js";
+import { createStage, b2l, REST_TILT } from "./stage.js";
 import { GUIDE, PRINTED } from "./guide.js";
 
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const bar = document.querySelector("#loader .bar span");
 const {
-  renderer, scene, camera, rig, pan, tilt, holders, restPos, led, ledLight, cables, updateCables, composer, bokeh, LIFT_MM,
+  renderer, scene, camera, rig, pan, tilt, holders, restPos, setLed, cables, updateCables, composer, dof, LIFT_MM,
 } = await createStage({ canvas: document.getElementById("scene"), onProgress: (f) => (bar.style.width = `${100 * f}%`) });
 
 // ------------------------------------------------------------------ parts: solid, arriving, ghost, hidden
@@ -79,9 +79,7 @@ function apply() {
   tilt.position.y = rig.pivots.tz + LIFT_MM * pose.lift;
   pan.rotation.y = THREE.MathUtils.degToRad(pose.pan);
   tilt.rotation.x = THREE.MathUtils.degToRad(pose.tilt);
-  led.emissiveIntensity = pose.led * 6;
-  ledLight.intensity = pose.led * 0.02;
-  ledLight.position.copy(b2t(...rig.led));
+  setLed(pose.led);
   // cables "draw" along their route as they're laid in
   cables.forEach((c, i) => {
     const f = i === 0 ? pose.cableIn : pose.cableOut;
@@ -290,6 +288,6 @@ renderer.setAnimationLoop(() => {
   controls.update();
   apply();
   updateCables();
-  bokeh.uniforms.focus.value = camera.position.distanceTo(controls.target);
+  dof.uniforms.focus.value = camera.position.distanceTo(controls.target);
   composer.render();
 });

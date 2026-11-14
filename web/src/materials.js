@@ -23,16 +23,29 @@ const layerBump = canvasTex(8, 512, (g, w, h) => {
   }
 });
 
+// a printed ESD mat, cutting-mat blue like the renders: a fine grid with a heavier line every fifth, faint mottling
 const gridMap = canvasTex(1024, 1024, (g, w, h) => {
-  g.fillStyle = "#0b2140"; g.fillRect(0, 0, w, h);
-  g.strokeStyle = "rgba(120,160,205,0.55)"; g.lineWidth = 2;
-  for (let i = 0; i <= 16; i++) {
-    const p = (i / 16) * w;
+  g.fillStyle = "#183c68"; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 6000; i++) {
+    g.fillStyle = `rgba(${Math.random() < 0.5 ? "0,0,0" : "255,255,255"},${Math.random() * 0.035})`;
+    g.fillRect(Math.random() * w, Math.random() * h, 3, 3);
+  }
+  for (let i = 0; i <= 20; i++) {
+    const p = (i / 20) * w, major = i % 5 === 0;
+    g.strokeStyle = major ? "rgba(170,205,240,0.28)" : "rgba(160,195,235,0.13)";
+    g.lineWidth = major ? 2.5 : 1.25;
     g.beginPath(); g.moveTo(p, 0); g.lineTo(p, h); g.stroke();
     g.beginPath(); g.moveTo(0, p); g.lineTo(w, p); g.stroke();
   }
-  for (let i = 0; i < 9000; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.025})`; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
 }, { repeat: [3, 3], srgb: true });
+
+// the wall catches a little spill from the lamp: a soft glow just above the desk, behind the product
+// (the wall plane's v runs top-down, so with flipY the canvas top is the foot of the wall)
+const wallGlow = canvasTex(256, 256, (g, w, h) => {
+  const r = g.createRadialGradient(w / 2, h * 0.1, 0, w / 2, h * 0.1, w * 0.5);
+  r.addColorStop(0, "#fff"); r.addColorStop(1, "#000");
+  g.fillStyle = r; g.fillRect(0, 0, w, h);
+}, { srgb: true });
 
 const braidBump = canvasTex(64, 64, (g, w, h) => {
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -45,8 +58,8 @@ const braidBump = canvasTex(64, 64, (g, w, h) => {
 const P = (o) => new THREE.MeshPhysicalMaterial(o);
 const LIBRARY = {
   PLA_offwhite: () => P({ color: 0xc8c3b8, roughness: 0.5, sheen: 0.15, sheenRoughness: 0.8, bumpMap: layerBump, bumpScale: 0.6 }),
-  PLA_charcoal: () => P({ color: 0x1c1d20, roughness: 0.55, sheen: 0.25, sheenColor: 0x444444, bumpMap: layerBump, bumpScale: 0.6 }),
-  PETG_frost: () => P({ color: 0xeef0f4, roughness: 0.34, transmission: 1, thickness: 1.5, ior: 1.57, bumpMap: layerBump, bumpScale: 0.4 }),
+  PLA_charcoal: () => P({ color: 0x3a3c41, roughness: 0.55, sheen: 0.25, sheenColor: 0x444444, bumpMap: layerBump, bumpScale: 0.6 }),
+  PETG_frost: () => P({ color: 0xeef0f4, roughness: 0.28, transmission: 1, thickness: 1.2, ior: 1.57, bumpMap: layerBump, bumpScale: 0.4 }),
   PETG_clear: () => P({ color: 0xf6fbff, roughness: 0.06, transmission: 1, thickness: 1.0, ior: 1.57 }),
   servo_black: () => P({ color: 0x0d0d0f, roughness: 0.45, clearcoat: 0.3, clearcoatRoughness: 0.5 }),
   horn_nylon: () => P({ color: 0xdedbd4, roughness: 0.42 }),
@@ -66,9 +79,9 @@ const LIBRARY = {
   vent_mesh: () => P({ color: 0x9a9a9e, metalness: 1, roughness: 0.35 }),
   led: () => P({ color: 0xe8f5ee, roughness: 0.15, emissive: 0x40ff88, emissiveIntensity: 0 }),
   // the bench
-  esd_mat_grid: () => P({ map: gridMap, roughness: 0.78 }),
-  desk_oak_scan: (m) => { m.roughness = 0.55; return m; },     // keep the scanned oak textures from the glb
-  wall: () => P({ color: 0x0c0c0e, roughness: 0.95 }),
+  esd_mat_grid: (m) => P({ map: gridMap, roughness: 0.82, normalMap: m.normalMap, normalScale: m.normalScale }),   // keep the glb's rubber texture
+  desk_oak_scan: (m) => { m.roughness = 0.68; m.color.setScalar(0.55); m.specularIntensity = 0.5; return m; },   // the glb's scanned oak, stained darker
+  wall: () => P({ color: 0x0c0c0e, roughness: 0.95, emissive: 0x484c55, emissiveMap: wallGlow, emissiveIntensity: 0.8 }),
   station_blue: () => P({ color: 0x2b3a99, roughness: 0.45, clearcoat: 0.2 }),
   station_yellow: () => P({ color: 0xd99f1c, roughness: 0.5 }),
   spool_white: () => P({ color: 0xe2e2df, roughness: 0.5 }),
