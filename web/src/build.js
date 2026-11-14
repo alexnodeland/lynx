@@ -104,7 +104,10 @@ function frame(keys, { az = -32, el = 24, pad = 2.1, min = 0.24 } = {}) {
   for (const k of keys) for (const m of meshes[k] || []) box.union(tmpBox.setFromObject(m));
   if (box.isEmpty()) for (const k of PARTS) for (const m of meshes[k]) box.union(tmpBox.setFromObject(m));
   box.getBoundingSphere(sphere);
-  const fov = THREE.MathUtils.degToRad(camera.fov);
+  // fit to the narrower field of view: the width on a portrait phone, where the model also only has
+  // the half of the screen above the step sheet
+  const vfov = THREE.MathUtils.degToRad(camera.fov), hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
+  const fov = camera.aspect < 0.85 ? Math.min(hfov, vfov * 0.5) : vfov;
   const dist = Math.max(min, (sphere.radius / Math.sin(fov / 2)) * pad);
   const a = THREE.MathUtils.degToRad(az), e = THREE.MathUtils.degToRad(el);
   const dir = new THREE.Vector3(Math.cos(e) * Math.sin(a), Math.sin(e), Math.cos(e) * Math.cos(a));

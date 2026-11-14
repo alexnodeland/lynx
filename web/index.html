@@ -16,7 +16,7 @@
   <link rel="preload" href="./draco/draco_decoder.wasm" as="fetch" crossorigin />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&family=Doto:wght,ROND@700..900,0..100&family=Martian+Mono:wdth,wght@100..112.5,400..600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
@@ -24,7 +24,7 @@
 
   <div id="loader" role="status">
     <div class="aperture" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-    <div class="mark">lynx</div>
+    <div class="mark" aria-hidden="true">lynx</div>
     <div class="bar"><span></span></div>
     <p class="mono">focusing…</p>
   </div>
@@ -42,7 +42,7 @@
   <svg id="callout" aria-hidden="true"><path id="leader" /><circle id="target" r="9" /><circle id="target-dot" r="2.4" /></svg>
 
   <header class="hud">
-    <a class="brand" href="#top" aria-label="lynx home"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" /><circle class="pupil" cx="16" cy="16" r="4" /></svg>lynx</a>
+    <a class="brand" href="#top" aria-label="lynx home"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" /><circle class="pupil" cx="16" cy="16" r="4" /></svg>lynx<span class="rev">rev D</span></a>
     <nav>
       <a class="key small" href="./build.html"><span class="cap">Build guide</span></a>
       <a class="key small" href="https://github.com/alexnodeland/lynx" target="_blank" rel="noopener"><span class="cap">GitHub</span></a>
@@ -58,10 +58,10 @@
     <section class="beat" id="top" data-beat="hero">
       <article class="slab left hero">
         <div class="face">
-          <p class="eyebrow mono">open-source pan/tilt camera</p>
+          <p class="eyebrow"><span class="tag">LX</span>open-source pan/tilt camera<span class="spec">ESP32-S3</span></p>
           <h1>A camera you can<br />tell where to look.</h1>
           <p>AI agents drive it over MCP. Home Assistant finds it on its own. It tracks faces, and it can learn your own objects, all on a XIAO ESP32-S3 Sense you print and build in an afternoon.</p>
-          <p class="hint mono">scroll ↓</p>
+          <p class="hint">scroll to explore</p>
         </div>
       </article>
     </section>
@@ -69,7 +69,7 @@
     <section class="beat" id="agents" data-beat="agents">
       <article class="slab right">
         <div class="face">
-          <p class="eyebrow mono">01 · agents</p>
+          <p class="eyebrow"><span class="tag">01</span>agents<span class="spec">MCP · REST</span></p>
           <h2>Tell it where to look.</h2>
           <p>lynx runs an MCP server and a REST API on the device. Connect Claude or any MCP client, and it can aim the head, take a snapshot and say what it sees.</p>
           <ol class="chat mono" id="chat">
@@ -85,7 +85,7 @@
     <section class="beat" id="home" data-beat="home">
       <article class="slab left">
         <div class="face">
-          <p class="eyebrow mono">02 · home assistant</p>
+          <p class="eyebrow"><span class="tag">02</span>home assistant<span class="spec">HACS</span></p>
           <h2>Found, not configured.</h2>
           <p>Install the integration from HACS and lynx turns up under <em>Discovered</em>. Paste its token and you get the camera, pan and tilt, presets, patrol, occupancy, and firmware updates from GitHub.</p>
           <ul class="entities mono" id="entities">
@@ -101,7 +101,7 @@
     <section class="beat" id="track" data-beat="track" data-anchor="pivot">
       <article class="slab right">
         <div class="face">
-          <p class="eyebrow mono">03 · face tracking</p>
+          <p class="eyebrow"><span class="tag">03</span>face tracking<span class="spec">on device</span></p>
           <h2>It finds you. Then it follows.</h2>
           <p>Face detection (people or cats) runs on the camera itself while the stream keeps 20 fps. Follow mode keeps the nearest face centred, then goes back to rest when it's gone. No frame leaves the device.</p>
           <div class="stats"><div><b>~4</b><span>per second</span></div><div><b>±90°</b><span>pan</span></div><div><b>0</b><span>cloud</span></div></div>
@@ -112,7 +112,7 @@
     <section class="beat" id="train" data-beat="train">
       <article class="slab left">
         <div class="face">
-          <p class="eyebrow mono">04 · custom models</p>
+          <p class="eyebrow"><span class="tag">04</span>custom models<span class="spec">Edge Impulse</span></p>
           <h2>Teach it your own things.</h2>
           <p>Gather training pictures with lynx itself, train a model in Edge Impulse, and install the export with one command. It then detects your objects on the camera, just as it does faces.</p>
           <ol class="flow mono">
@@ -127,7 +127,7 @@
     <section class="beat" id="build" data-beat="assembly">
       <article class="slab right">
         <div class="face">
-          <p class="eyebrow mono">05 · build it</p>
+          <p class="eyebrow"><span class="tag">05</span>build it<span class="spec">~$43 BOM</span></p>
           <h2>Eight printed parts. One screw type.</h2>
           <p>Two MG90S servos, one USB-C cable for power and data, a microSD slot with a clear path in. Nine M2 × 8 thread-forming screws hold it together. About $43 in parts.</p>
           <ol class="steps" id="steps"></ol>

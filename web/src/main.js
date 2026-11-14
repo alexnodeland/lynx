@@ -32,30 +32,31 @@ document.getElementById("steps").innerHTML = ASSEMBLY.map(([, t]) => `<li>${t}</
 // ------------------------------------------------------------------ camera shots (Blender convention)
 const C = rig.pivots;
 const HERO = [C.pan_x, C.cy, -12];
-function shotPose([tx, ty, tz], az, el, dist, fov) {
+// shift: on wide screens, how far (a fraction of the width) the product moves away from the chapter's card
+function shotPose([tx, ty, tz], az, el, dist, fov, shift = 0) {
   const a = THREE.MathUtils.degToRad(az), e = THREE.MathUtils.degToRad(el), d = dist * 1000;
   const t = b2t(tx, ty, tz);
   const p = b2t(tx + d * Math.cos(e) * Math.sin(a), ty - d * Math.cos(e) * Math.cos(a), tz + d * Math.sin(e));
-  return { target: t, pos: p, fov };
+  return { target: t, pos: p, fov, shift };
 }
 const SHOTS = {
-  hero: shotPose(HERO, 34, 13, 0.34, 28),           // front right and low, like the product renders
-  agents: shotPose([C.pan_x, C.cy, -8], 28, 14, 0.36, 30),
-  home: shotPose([C.pan_x, C.cy, -10], -48, 22, 0.42, 30),
-  train: shotPose([C.pan_x, C.cy, -2], 6, 8, 0.28, 30),
-  motion: shotPose([C.pan_x, C.cy, -6], 12, 10, 0.30, 30),
-  assembly: shotPose([C.pan_x, C.cy, 0], -18, 16, 0.52, 32),
+  hero: shotPose(HERO, 34, 13, 0.34, 28, 0.1),      // front right and low, like the product renders
+  agents: shotPose([C.pan_x, C.cy, -8], 28, 14, 0.36, 30, -0.08),
+  home: shotPose([C.pan_x, C.cy, -10], -48, 22, 0.42, 30, 0.1),
+  train: shotPose([C.pan_x, C.cy, -2], 6, 8, 0.28, 30, 0.08),
+  motion: shotPose([C.pan_x, C.cy, -6], 12, 10, 0.30, 30, -0.08),
+  assembly: shotPose([C.pan_x, C.cy, 0], -18, 16, 0.52, 32, -0.08),
   cta: shotPose([C.pan_x, C.cy, -34], -40, 12, 0.44, 28),        // target low: product sits high, CTAs below
 };
-const cam = { pos: SHOTS.hero.pos.clone(), target: SHOTS.hero.target.clone(), fov: 30 };
-const smooth = { pos: cam.pos.clone(), target: cam.target.clone(), fov: 30 };
+const cam = { pos: SHOTS.hero.pos.clone(), target: SHOTS.hero.target.clone(), fov: 30, shift: SHOTS.hero.shift };
+const smooth = { ...cam, pos: cam.pos.clone(), target: cam.target.clone() };
 
 // ------------------------------------------------------------------ timeline
 function toShot(tl, name, at, dur = 1) {
   const s = SHOTS[name];
   tl.to(cam.pos, { x: s.pos.x, y: s.pos.y, z: s.pos.z, duration: dur, ease: "power2.inOut" }, at);
   tl.to(cam.target, { x: s.target.x, y: s.target.y, z: s.target.z, duration: dur, ease: "power2.inOut" }, at);
-  tl.to(cam, { fov: s.fov, duration: dur, ease: "power2.inOut" }, at);
+  tl.to(cam, { fov: s.fov, shift: s.shift, duration: dur, ease: "power2.inOut" }, at);
 }
 const beats = [...document.querySelectorAll(".beat")];
 let beatAt = [];
@@ -166,8 +167,6 @@ function applyTilt() {
     face.style.setProperty("--my", `${((pointer.y - r.top) / r.height) * 100}%`);
   }
 }
-const reveal = new IntersectionObserver((es) => es.forEach((e) => e.target.classList.toggle("in", e.isIntersecting)), { threshold: 0.3 });
-document.querySelectorAll(".slab").forEach((el) => reveal.observe(el));
 
 // chapter rail: click to jump, highlight the current chapter
 const railLinks = [...document.querySelectorAll("#rail a")];
@@ -203,6 +202,8 @@ function measureCallout(cur) {
 }
 function updateChrome(cur, r) {
   railFill.style.transform = `scaleX(${progress})`;
+  // one module at a time: the current chapter's (on phones they dock in the same place, so two would stack)
+  chapters.forEach(({ slab }, i) => slab?.classList.toggle("in", i === cur));
   railLinks.forEach((a) => a.classList.toggle("on", +a.dataset.to === cur || (cur === 6 && +a.dataset.to === 5)));
   // leader line from the visible slab to its anchor
   if (!r) { callout.classList.add("hide"); return; }
@@ -235,14 +236,29 @@ const viewport = { w: renderer.domElement.clientWidth, h: renderer.domElement.cl
 
 // Render on demand: every pixel follows from these numbers (scroll spring, intro, cursor look, camera),
 // so while none has moved since the last rendered frame that frame still stands and the GPU idles.
-const pose = new Float64Array(11), shown = new Float64Array(11).fill(NaN);
+const pose = new Float64Array(12), shown = new Float64Array(12).fill(NaN);
 function invalidate() { shown.fill(NaN); }
 function poseChanged() {
   pose[0] = progress; pose[1] = introTl ? introTl.time() : 0; pose[2] = lookPan; pose[3] = lookTilt;
-  smooth.pos.toArray(pose, 4); smooth.target.toArray(pose, 7); pose[10] = smooth.fov;
+  smooth.pos.toArray(pose, 4); smooth.target.toArray(pose, 7); pose[10] = smooth.fov; pose[11] = smooth.shift;
   const changed = pose.some((v, i) => !(Math.abs(v - shown[i]) < 1e-5));   // NaN (invalidated) counts as changed
   if (changed) shown.set(pose);
   return changed;
+}
+
+// Where the product sits on screen. Wide screens move it away from the chapter's card; portrait screens
+// put it in the top half, above the docked card, and widen the view until its whole width fits.
+const PORTRAIT = 0.85;
+function frameShot(fov, shift) {
+  const { w, h } = viewport, aspect = w / h;
+  if (aspect < PORTRAIT) {
+    const half = Math.atan((Math.tan(THREE.MathUtils.degToRad(fov) / 2) * PORTRAIT) / aspect);
+    camera.fov = THREE.MathUtils.radToDeg(half * 2);
+    camera.setViewOffset(w, h, 0, h * 0.2, w, h);
+  } else {
+    camera.fov = fov;
+    camera.setViewOffset(w, h, -shift * w, 0, w, h);
+  }
 }
 
 // The timeline records each tween's start values when it is built, so it must be rebuilt from the
@@ -271,7 +287,6 @@ addEventListener("resize", () => {
   renderer.setSize(w, h, false);
   composer.setSize(w, h);
   camera.aspect = w / h;
-  camera.updateProjectionMatrix();
   invalidate();
   scheduleRebuild();
 });
@@ -317,9 +332,9 @@ renderer.setAnimationLoop((time) => {
   smooth.pos.lerp(tmp.copy(cam.pos).add(parallax.set(mouse.x * 0.006, -mouse.y * 0.004, 0)), k);
   smooth.target.lerp(cam.target, k);
   smooth.fov += (cam.fov - smooth.fov) * k;
+  smooth.shift += (cam.shift - smooth.shift) * k;
   camera.position.copy(smooth.pos);
-  camera.fov = smooth.fov;
-  camera.updateProjectionMatrix();
+  frameShot(smooth.fov, smooth.shift);
   camera.lookAt(smooth.target);
   dof.uniforms.focus.value = camera.position.distanceTo(smooth.target);
   updateChrome(cur, calloutRect);

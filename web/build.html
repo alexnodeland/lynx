@@ -16,7 +16,7 @@
   <link rel="preload" href="./draco/draco_decoder.wasm" as="fetch" crossorigin />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&family=Doto:wght,ROND@700..900,0..100&family=Martian+Mono:wdth,wght@100..112.5,400..600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" />
   <link rel="stylesheet" href="/src/build.css" />
 </head>
@@ -25,13 +25,13 @@
 
   <div id="loader" role="status">
     <div class="aperture" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-    <div class="mark">lynx</div>
+    <div class="mark" aria-hidden="true">lynx</div>
     <div class="bar"><span></span></div>
     <p class="mono">laying out the parts…</p>
   </div>
 
   <header class="hud">
-    <a class="brand" href="./" aria-label="lynx home"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" /><circle class="pupil" cx="16" cy="16" r="4" /></svg>lynx</a>
+    <a class="brand" href="./" aria-label="lynx home"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" /><circle class="pupil" cx="16" cy="16" r="4" /></svg>lynx<span class="rev">rev D</span></a>
     <nav>
       <a class="key small here" href="./build.html" aria-current="page"><span class="cap">Build guide</span></a>
       <a class="key small" href="./flash.html"><span class="cap">Flash</span></a>
@@ -42,7 +42,7 @@
   <main id="guide">
     <article class="slab left in" id="card" aria-live="polite">
       <div class="face">
-        <p class="eyebrow mono"><span id="g-chapter"></span><span class="sep">·</span><span id="g-num"></span><span class="time" id="g-time"></span></p>
+        <p class="eyebrow"><span class="tag" id="g-chapter"></span><span id="g-num"></span><span class="spec" id="g-time"></span></p>
         <h1 id="g-title"></h1>
         <p id="g-body"></p>
         <ul class="need" id="g-need"></ul>
