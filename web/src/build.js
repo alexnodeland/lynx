@@ -11,7 +11,7 @@ import { GUIDE, PRINTED } from "./guide.js";
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const bar = document.querySelector("#loader .bar span");
 const {
-  renderer, scene, camera, rig, pan, tilt, holders, restPos, setLed, cables, updateCables, composer, dof, LIFT_MM,
+  renderer, scene, camera, rig, pan, tilt, holders, restPos, setLed, cables, updateCables, composer, render, dof, LIFT_MM,
 } = await createStage({ canvas: document.getElementById("scene"), onProgress: (f) => (bar.style.width = `${100 * f}%`) });
 
 // ------------------------------------------------------------------ parts: solid, arriving, ghost, hidden
@@ -58,7 +58,10 @@ function highlight(keys) {
       if (on && !m.userData.glow) { m.userData.glow = new THREE.Mesh(m.geometry, glow); m.userData.glow.renderOrder = 3; m.add(m.userData.glow); }
       if (m.userData.glow) m.userData.glow.visible = on;
     }
-  if (keys.length) glowTl = gsap.to(glow, { opacity: 0.32, duration: 0.9, repeat: -1, yoyo: true, ease: "sine.inOut", delay: 0.8 });
+  // a few pulses, then a soft steady glow (a pulse forever would keep the GPU rendering the whole time)
+  if (keys.length) glowTl = gsap.timeline({ delay: 0.8 })
+    .to(glow, { opacity: 0.32, duration: 0.9, repeat: 5, yoyo: true, ease: "sine.inOut" })
+    .to(glow, { opacity: 0.16, duration: 0.6, ease: "sine.inOut" });
 }
 
 // how far each part is from home (0 = assembled), along its own `from` vector
@@ -88,6 +91,11 @@ function apply() {
     if (n) c.geometry.setDrawRange(0, Math.ceil((f * n) / 6) * 6);
   });
 }
+
+// Render on demand: the frame only changes while the camera moves, a tween runs, or a step change or
+// resize touched the scene directly (materials, visibility, the cable's draw range) and invalidated it.
+let stale = true;
+function invalidate() { stale = true; }
 
 // ------------------------------------------------------------------ camera: frame what matters, leave room for the card
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -134,6 +142,7 @@ function layout() {
   if (w > 760) camera.setViewOffset(w, h, -Math.min(card.right * 0.5, w * 0.22), 0, w, h);
   else camera.setViewOffset(w, h, 0, Math.min(card.height * 0.45, h * 0.24), w, h);
   camera.updateProjectionMatrix();
+  invalidate();
 }
 addEventListener("resize", layout);
 
@@ -169,6 +178,7 @@ function fillCard(s, i) {
 
 function go(i, { animate = true } = {}) {
   i = Math.max(0, Math.min(GUIDE.length - 1, i));
+  invalidate();
   const s = GUIDE[i];
   const first = cur < 0;
   cur = i;
@@ -287,10 +297,12 @@ updateCables();
 await renderer.compileAsync(scene, camera);
 go(start, { animate: true });
 document.getElementById("loader").classList.add("done");
-renderer.setAnimationLoop(() => {
-  controls.update();
+renderer.setAnimationLoop((time) => {
+  const moved = controls.update();   // true while the camera moves, damping included
+  if (!moved && !stale && ![stepTl, idleTl, camTl, glowTl].some((t) => t?.isActive())) return;
+  stale = false;
   apply();
   updateCables();
   dof.uniforms.focus.value = camera.position.distanceTo(controls.target);
-  composer.render();
+  render(time);
 });

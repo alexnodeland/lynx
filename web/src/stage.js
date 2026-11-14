@@ -268,10 +268,29 @@ export async function createStage({ canvas, onProgress } = {}) {
   composer.addPass(new OutputPass());
   if (!TOUCH) composer.addPass(new SMAAPass(w, h));
 
+  // Adaptive resolution: frames rendered back to back are timed, and if they run below ~35 fps for a
+  // second and a half the pixel ratio steps down (to 0.75 at the lowest). It never steps back up within
+  // a visit: behind vsync, a fast GPU and a just-fast-enough one look the same.
+  let lastFrame = -Infinity, slowFor = 0;
+  function render(time = performance.now()) {
+    const dt = time - lastFrame;
+    lastFrame = time;
+    if (dt < 100) {                                  // a consecutive frame, not the first after idling
+      slowFor = dt > 28 ? slowFor + dt : Math.max(0, slowFor - dt);
+      const ratio = renderer.getPixelRatio();
+      if (slowFor > 1500 && ratio > 0.75) {
+        slowFor = 0;
+        renderer.setPixelRatio(ratio - 0.25);
+        composer.setPixelRatio(ratio - 0.25);
+      }
+    }
+    composer.render();
+  }
+
   return {
     renderer, scene, camera, key, lynx, set, rig, mats, node, pan, tilt, holders, restPos, setLed,
     EXPL, explode, state, LIFT_MM, applyParts, groupNode, cables, updateCables, tmp, setArcs,
-    composer, ao, dof,
+    composer, render, ao, dof,
   };
 }
 
