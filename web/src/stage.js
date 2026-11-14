@@ -10,9 +10,10 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import { BokehPass } from "three/examples/jsm/postprocessing/BokehPass.js";
+import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { N8AOPass } from "n8ao";
 import { restyle, cableMaterial, powerCableMaterial } from "./materials.js";
+import { DepthOfFieldPass } from "./dof.js";
 
 export const MM = 0.001;
 // Blender (z-up, mm) -> three (y-up, m)
@@ -27,30 +28,35 @@ export async function createStage({ canvas, onProgress } = {}) {
   const TOUCH = matchMedia("(pointer: coarse)").matches;
   renderer.setPixelRatio(Math.min(devicePixelRatio, TOUCH ? 1.25 : 1.5));
   renderer.setSize(canvas.clientWidth || innerWidth, canvas.clientHeight || innerHeight, false);   // CSS sizes the canvas (100lvh)
-  renderer.toneMapping = THREE.AgXToneMapping;
-  renderer.toneMappingExposure = 0.82;
+  renderer.toneMapping = THREE.AgXToneMapping;           // rolls highlights off like the Blender renders
+  renderer.toneMappingExposure = 1.25;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;        // unlike PCFSoftShadowMap, honours shadow.radius
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0b0b0d);
-  scene.fog = new THREE.Fog(0x0b0b0d, 0.7, 1.9);
+  const BG = 0x09090b;
+  scene.background = new THREE.Color(BG);
+  scene.fog = new THREE.Fog(BG, 0.55, 1.6);            // the far bench falls off into the dark
   const camera = new THREE.PerspectiveCamera(30, (canvas.clientWidth || innerWidth) / (canvas.clientHeight || innerHeight), 0.005, 5);
 
-  // lights: warm desk lamp (key, shadows), cool window fill, rim
-  const key = new THREE.DirectionalLight(0xffd2a0, 2.6);
-  key.position.set(-0.24, 0.28, 0.16);
+  // lights: a warm desk lamp to the left throws a pool of light on the mat (key, soft shadows), a cool
+  // rim from behind picks out the top edges, and the studio HDR fills the rest
+  const key = new THREE.SpotLight(0xfff0e0, 1.35, 0, 0.5, 1, 2);
+  key.position.set(-0.32, 0.34, 0.02);
+  key.target.position.set(0.04, -0.06, -0.07);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
-  Object.assign(key.shadow.camera, { left: -0.15, right: 0.15, top: 0.15, bottom: -0.15, near: 0.01, far: 1 });
-  key.shadow.bias = -0.0004;
-  key.shadow.radius = 4;
-  scene.add(key);
-  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x1a1208, 0.10));
-  const rim = new THREE.DirectionalLight(0xfff0dc, 1.6);
-  rim.position.set(0.08, 0.26, -0.34);
+  key.shadow.focus = 0.55;                           // spend the shadow map on the middle of the pool
+  Object.assign(key.shadow.camera, { near: 0.15, far: 1.2 });
+  key.shadow.bias = -0.0002;
+  key.shadow.radius = 3;
+  scene.add(key, key.target);
+  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x14161a, 0.14));
+  const rim = new THREE.DirectionalLight(0xb8ccff, 0.9);
+  rim.position.set(0.12, 0.26, -0.34);
   scene.add(rim);
-  const ledLight = new THREE.PointLight(0x40ff88, 0, 0.06, 2);
-  scene.add(ledLight);
+  // the status LED's spill: it sits inside the lid and point lights cast no shadow here, so it is kept
+  // faint and short, or it shines straight through the shell onto the yoke. Rides on the head, see below.
+  const ledLight = new THREE.PointLight(0x40ff88, 0, 0.035, 2);
 
   // ------------------------------------------------------------------ loading
   const manager = new THREE.LoadingManager();
@@ -65,10 +71,14 @@ export async function createStage({ canvas, onProgress } = {}) {
   ]);
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromEquirectangular(env).texture;
-  scene.environmentIntensity = 0.32;
+  scene.environmentIntensity = 0.45;
   env.dispose();
 
   restyle(set.scene);
+  // the bench's big surfaces only receive shadows; nothing stands under them to be shadowed
+  set.scene.traverse((o) => { if (/^(Desk|ESDMat|Wall)/.test(o.name)) o.castShadow = false; });
+  const anisotropy = renderer.capabilities.getMaxAnisotropy();   // the mat and desk are seen at grazing angles
+  set.scene.traverse((o) => { for (const t of ["map", "normalMap", "roughnessMap"]) if (o.material?.[t]) o.material[t].anisotropy = anisotropy; });
   // the bench is dressed for the film camera; for the web's wider shots push the station back
   set.scene.traverse((o) => { if (/^(Station|IronHolder|Iron)/.test(o.name)) { o.position.x += 0.42; o.position.z -= 0.34; } });
   set.scene.traverse((o) => { if (/^(SolderSpool|WireSpool)/.test(o.name)) { o.position.x -= 0.07; o.position.z -= 0.05; } });   // clear the close-ups
@@ -94,6 +104,11 @@ export async function createStage({ canvas, onProgress } = {}) {
   const state = { pan: 0, tilt: REST_TILT, lift: 0, plug: 1, card: 1, led: 0, arcs: 0 };
   const LIFT_MM = 22;
 
+  function setLed(amount) {
+    led.emissiveIntensity = amount * 6;
+    ledLight.intensity = amount * 0.003;
+  }
+
   function applyParts() {
     for (const [k, amt] of Object.entries(explode)) {
       const h = holders[k];
@@ -109,12 +124,13 @@ export async function createStage({ canvas, onProgress } = {}) {
     tilt.position.y = rig.pivots.tz + LIFT_MM * state.lift;
     pan.rotation.y = THREE.MathUtils.degToRad(state.pan);
     tilt.rotation.x = THREE.MathUtils.degToRad(state.tilt);
-    led.emissiveIntensity = state.led * 6;
-    ledLight.intensity = state.led * 0.02;
+    setLed(state.led);
   }
 
   // ------------------------------------------------------------------ cables (drawn from the CAD waypoints)
   lynx.scene.updateMatrixWorld(true);
+  tilt.add(ledLight);
+  ledLight.position.copy(tilt.worldToLocal(b2t(...rig.led)));
   const groupNode = { tilt, pan, fixed: node("Root") };
   function anchorPoints(list) {
     // waypoint -> its rig group's local frame, captured at rest so it follows that group afterwards
@@ -185,7 +201,8 @@ export async function createStage({ canvas, onProgress } = {}) {
   function arc(radius, from, to, color) {
     const curve = new THREE.EllipseCurve(0, 0, radius, radius, from, to);
     const g = new THREE.BufferGeometry().setFromPoints(curve.getPoints(96).map((p) => new THREE.Vector3(p.x, 0, p.y)));
-    return new THREE.Line(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false }));
+    // writes depth so depth of field keeps it sharp at the pivot; hidden while faded out (see setArcs)
+    return new THREE.Line(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0 }));
   }
   const panArc = arc(0.05, -Math.PI / 2 - Math.PI / 2, -Math.PI / 2 + Math.PI / 2, 0x7fd6a4);
   panArc.position.copy(b2t(rig.pivots.pan_x, rig.pivots.cy, rig.pivots.floor_z + 26));
@@ -194,27 +211,45 @@ export async function createStage({ canvas, onProgress } = {}) {
   tiltArc.rotation.z = Math.PI / 2;
   tiltArc.position.copy(b2t(rig.pivots.pan_x - 22, rig.pivots.cy, rig.pivots.tz));
   scene.add(tiltArc);
+  function setArcs(amount) {
+    for (const a of [panArc, tiltArc]) {
+      a.visible = amount > 0;
+      a.material.opacity = amount * 0.8;
+    }
+  }
+  setArcs(0);
 
   // ------------------------------------------------------------------ post
+  // Desktop: N8AOPass is the scene render (it draws the beauty pass and its depth itself), and depth of
+  // field reads that same depth texture, so the scene is drawn once per frame. Hardware MSAA doesn't
+  // survive the AO pass, so SMAA runs last, on the display-referred image.
+  // Phones: one MSAA scene render, bloom for the LED, output. No AO, depth of field or SMAA.
   const composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-  const ao = new N8AOPass(scene, camera, innerWidth, innerHeight);
-  ao.configuration.aoRadius = 0.02;
-  ao.configuration.distanceFalloff = 0.01;
-  ao.configuration.intensity = 2.2;
-  ao.configuration.halfRes = true;
-  ao.configuration.gammaCorrection = false;        // OutputPass does the colour conversion once, at the end
-  if (!TOUCH) composer.addPass(ao);
-  composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.25, 0.4, 0.92));
-  // shallow depth of field like the renders: focus tracks the product every frame
-  const bokeh = new BokehPass(scene, camera, { focus: 0.34, aperture: 0.0035, maxblur: 0.006 });
-  if (!TOUCH) composer.addPass(bokeh);
+  const { x: w, y: h } = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const ao = new N8AOPass(scene, camera, w, h);
+  Object.assign(ao.configuration, {
+    aoRadius: 0.02, distanceFalloff: 0.01, intensity: 2.2, halfRes: true,
+    gammaCorrection: false,                          // OutputPass does the colour conversion once, at the end
+  });
+  // nothing here needs transparency-aware AO (the only transparent things are thin lines); auto-detect
+  // would turn it on and draw the scene twice more every frame
+  ao.autoDetectTransparency = false;
+  // shallow depth of field like the renders: main.js and build.js keep the focus on the product
+  const dof = new DepthOfFieldPass(camera, ao.beautyRenderTarget.depthTexture, { focus: 0.34, aperture: 0.02, maxblur: 0.012 });
+  if (TOUCH) {
+    composer.renderTarget1.samples = composer.renderTarget2.samples = 4;
+    composer.addPass(new RenderPass(scene, camera));
+  } else {
+    composer.addPass(ao);
+    composer.addPass(dof);
+  }
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.25, 0.4, 0.92));
   composer.addPass(new OutputPass());
-
+  if (!TOUCH) composer.addPass(new SMAAPass(w, h));
 
   return {
-    renderer, scene, camera, key, rim, ledLight, lynx, set, rig, mats, node, pan, tilt, holders, restPos, led,
-    EXPL, explode, state, LIFT_MM, applyParts, groupNode, cables, updateCables, tmp, panArc, tiltArc,
-    composer, ao, bokeh,
+    renderer, scene, camera, key, rim, lynx, set, rig, mats, node, pan, tilt, holders, restPos, setLed,
+    EXPL, explode, state, LIFT_MM, applyParts, groupNode, cables, updateCables, tmp, setArcs,
+    composer, ao, dof,
   };
 }

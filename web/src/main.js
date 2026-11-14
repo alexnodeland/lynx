@@ -15,8 +15,8 @@ const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 // ------------------------------------------------------------------ scene (shared with the build guide)
 const bar = document.querySelector("#loader .bar span");
 const {
-  renderer, scene, camera, ledLight, rig, pan, tilt, holders, EXPL, explode, state, applyParts, groupNode,
-  updateCables, tmp, panArc, tiltArc, composer, bokeh,
+  renderer, scene, camera, rig, pan, tilt, holders, EXPL, explode, state, applyParts, groupNode,
+  updateCables, tmp, setArcs, composer, dof,
 } = await createStage({ canvas: document.getElementById("scene"), onProgress: (f) => (bar.style.width = `${100 * f}%`) });
 const ASSEMBLY = [
   ["Jig_Magnet", "Magnet into the base"], ["Jig_Servo_Pan", "Pan servo, two screws"], ["PanCap", "Pan cap, two side screws"],
@@ -139,24 +139,33 @@ function intro() {
 
 // ------------------------------------------------------------------ interaction: cursor look + CTA tilt
 const mouse = new THREE.Vector2();
-// 3D tilt + specular sheen on every glass slab and keycap, toward the cursor
-const tiltables = [...document.querySelectorAll(".slab, .key")];
-addEventListener("pointermove", (e) => {
-  mouse.set((e.clientX / innerWidth) * 2 - 1, (e.clientY / innerHeight) * 2 - 1);
-  for (const el of tiltables) {
-    const r = el.getBoundingClientRect();
-    if (r.bottom < 0 || r.top > innerHeight) continue;
-    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-    const dx = THREE.MathUtils.clamp((e.clientX - cx) / (r.width * 1.6), -1, 1);
-    const dy = THREE.MathUtils.clamp((e.clientY - cy) / (r.height * 1.6), -1, 1);
-    const strength = el.classList.contains("key") ? 10 : 6;
-    const tgt = el.classList.contains("key") ? el : el.querySelector(".face");
-    tgt.style.setProperty("--ry", `${dx * strength}deg`);
-    tgt.style.setProperty("--rx", `${-dy * strength}deg`);
-    tgt.style.setProperty("--mx", `${((e.clientX - r.left) / r.width) * 100}%`);
-    tgt.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`);
-  }
+// 3D tilt + specular sheen on every glass slab and keycap, toward the cursor. The handler only records
+// the pointer; the render loop measures and restyles once per frame (see the frame loop's read/write order).
+const tiltables = [...document.querySelectorAll(".slab, .key")].map((el) => {
+  const isKey = el.classList.contains("key");
+  return { el, face: isKey ? el : el.querySelector(".face"), strength: isKey ? 10 : 6, rect: null };
 });
+const pointer = { x: 0, y: 0, moved: false };
+addEventListener("pointermove", (e) => {
+  Object.assign(pointer, { x: e.clientX, y: e.clientY, moved: true });
+  mouse.set((e.clientX / innerWidth) * 2 - 1, (e.clientY / innerHeight) * 2 - 1);
+});
+function measureTilt() {
+  if (pointer.moved) for (const t of tiltables) t.rect = t.el.getBoundingClientRect();
+}
+function applyTilt() {
+  if (!pointer.moved) return;
+  pointer.moved = false;
+  for (const { face, strength, rect: r } of tiltables) {
+    if (r.bottom < 0 || r.top > innerHeight) continue;
+    const dx = THREE.MathUtils.clamp((pointer.x - (r.left + r.width / 2)) / (r.width * 1.6), -1, 1);
+    const dy = THREE.MathUtils.clamp((pointer.y - (r.top + r.height / 2)) / (r.height * 1.6), -1, 1);
+    face.style.setProperty("--ry", `${dx * strength}deg`);
+    face.style.setProperty("--rx", `${-dy * strength}deg`);
+    face.style.setProperty("--mx", `${((pointer.x - r.left) / r.width) * 100}%`);
+    face.style.setProperty("--my", `${((pointer.y - r.top) / r.height) * 100}%`);
+  }
+}
 const reveal = new IntersectionObserver((es) => es.forEach((e) => e.target.classList.toggle("in", e.isIntersecting)), { threshold: 0.3 });
 document.querySelectorAll(".slab").forEach((el) => reveal.observe(el));
 
@@ -174,23 +183,32 @@ const callout = document.getElementById("callout"), leader = document.getElement
 const target = document.getElementById("target"), targetDot = document.getElementById("target-dot");
 const roPan = document.getElementById("ro-pan"), roTilt = document.getElementById("ro-tilt");
 const fmt = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1).padStart(4, "0")}°`;
-function updateReadout(livePan, liveTilt) {   // text writes run after the layout read in updateChrome
+function updateReadout(livePan, liveTilt) {
   const p = fmt(livePan), t = fmt(liveTilt);
   if (roPan.textContent !== p) roPan.textContent = p;
   if (roTilt.textContent !== t) roTilt.textContent = t;
 }
-function updateChrome() {
-  railFill.style.transform = `scaleX(${progress})`;
+const chapters = beats.map((b) => ({ anchor: b.dataset.anchor, slab: b.querySelector(".slab"), face: b.querySelector(".slab .face") }));
+function currentChapter() {
+  const y = (goal * scrollRange + viewH * 0.45) / scrollRange;
   let cur = 0;
-  const H = document.documentElement.scrollHeight - viewH, y = (goal * H + viewH * 0.45) / H;
   beatAt.forEach((t, i) => { if (t <= y) cur = i; });
+  return cur;
+}
+// the slab the leader line starts from, or null when the current chapter has no callout showing
+function measureCallout(cur) {
+  const { anchor, slab, face } = chapters[cur];
+  if (!anchor || !slab || !slab.classList.contains("in") || introTl?.isActive()) return null;
+  return face.getBoundingClientRect();
+}
+function updateChrome(cur, r) {
+  railFill.style.transform = `scaleX(${progress})`;
   railLinks.forEach((a) => a.classList.toggle("on", +a.dataset.to === cur || (cur === 6 && +a.dataset.to === 5)));
   // leader line from the visible slab to its anchor
-  const beat = beats[cur], key = beat.dataset.anchor, slab = beat.querySelector(".slab");
-  if (!key || !slab || !slab.classList.contains("in") || (introTl && introTl.isActive())) { callout.classList.add("hide"); return; }
-  const w = ANCHORS[key].n.localToWorld(tmp.copy(ANCHORS[key].local)).project(camera);
-  const cv = renderer.domElement, tx = (w.x * 0.5 + 0.5) * cv.clientWidth, ty = (-w.y * 0.5 + 0.5) * cv.clientHeight;
-  const r = slab.querySelector(".face").getBoundingClientRect();
+  if (!r) { callout.classList.add("hide"); return; }
+  const { anchor, slab } = chapters[cur];
+  const w = ANCHORS[anchor].n.localToWorld(tmp.copy(ANCHORS[anchor].local)).project(camera);
+  const tx = (w.x * 0.5 + 0.5) * viewport.w, ty = (-w.y * 0.5 + 0.5) * viewport.h;
   const fromRight = slab.classList.contains("left");
   const sx = fromRight ? r.right : r.left, sy = Math.min(Math.max(ty, r.top + 28), r.bottom - 28);
   const kx = sx + (fromRight ? 1 : -1) * Math.min(60, Math.abs(tx - sx) * 0.4);
@@ -207,8 +225,26 @@ const TOUCH = matchMedia("(pointer: coarse)").matches;
 const MAX_RATE = 0.3;   // timeline progress per second: caps how fast a fling can drive the scene
 // read the scroll position straight off the page, once per frame in the render loop (no scroll-event work)
 // viewport height held steady on phones, so the address bar sliding away doesn't nudge the scene
-let viewH = innerHeight;
-const readGoal = () => { const H = document.documentElement.scrollHeight - viewH; goal = H > 0 ? Math.min(1, Math.max(0, scrollY / H)) : 0; };
+let viewH = innerHeight, scrollRange = 1;
+const readGoal = () => {
+  scrollRange = document.documentElement.scrollHeight - viewH;
+  goal = scrollRange > 0 ? Math.min(1, Math.max(0, scrollY / scrollRange)) : 0;
+};
+// the canvas's CSS size, for projecting callout anchors (read on resize, never inside a frame)
+const viewport = { w: renderer.domElement.clientWidth, h: renderer.domElement.clientHeight };
+
+// Render on demand: every pixel follows from these numbers (scroll spring, intro, cursor look, camera),
+// so while none has moved since the last rendered frame that frame still stands and the GPU idles.
+const pose = new Float64Array(11), shown = new Float64Array(11).fill(NaN);
+function invalidate() { shown.fill(NaN); }
+function poseChanged() {
+  pose[0] = progress; pose[1] = introTl ? introTl.time() : 0; pose[2] = lookPan; pose[3] = lookTilt;
+  smooth.pos.toArray(pose, 4); smooth.target.toArray(pose, 7); pose[10] = smooth.fov;
+  const changed = pose.some((v, i) => !(Math.abs(v - shown[i]) < 1e-5));   // NaN (invalidated) counts as changed
+  if (changed) shown.set(pose);
+  return changed;
+}
+
 // The timeline records each tween's start values when it is built, so it must be rebuilt from the
 // rest pose: rewind to 0 first, or the pose at that moment (half exploded, mid-pan) becomes the
 // new "assembled" state. Phones fire resize on returning to the tab (address bar), so debounce.
@@ -220,6 +256,7 @@ function scheduleRebuild() {
     measureBeats();
     tl = buildTimeline();
     tl.progress(progress);
+    invalidate();
   }, 150);
 }
 // Phones resize on every scroll as the address bar hides and shows. The canvas is sized to the large
@@ -230,10 +267,12 @@ addEventListener("resize", () => {
   if (TOUCH && innerWidth === lastW) return;
   lastW = innerWidth; viewH = innerHeight;
   const cv = renderer.domElement, w = cv.clientWidth, h = cv.clientHeight;
+  Object.assign(viewport, { w, h });
   renderer.setSize(w, h, false);
   composer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  invalidate();
   scheduleRebuild();
 });
 applyParts();
@@ -247,9 +286,12 @@ const clock = new THREE.Clock();
 let lookPan = 0, lookTilt = 0;
 const parallax = new THREE.Vector3();
 
+// Each frame does its DOM reads first and its writes last, so the page lays out at most once per frame.
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 1 / 30);
   readGoal();
+  const cur = currentChapter(), calloutRect = measureCallout(cur);
+  measureTilt();
   // critically damped spring toward the scroll goal (no overshoot, frame-rate independent)
   const w = 9, x = progress - goal, e = Math.exp(-w * dt), t0 = (vel + w * x) * dt;
   const next = goal + (x + t0) * e, cap = MAX_RATE * dt;
@@ -262,12 +304,12 @@ renderer.setAnimationLoop(() => {
   const idle = progress < at(1) - 0.07 || progress > at(6) - 0.02;
   lookPan += ((idle ? mouse.x * 28 : 0) - lookPan) * Math.min(1, dt * 3);
   lookTilt += ((idle ? -mouse.y * 14 : 0) - lookTilt) * Math.min(1, dt * 3);
-  const base = { pan: state.pan, tilt: state.tilt };
+  const { pan: scrollPan, tilt: scrollTilt } = state;
   state.pan += lookPan; state.tilt += lookTilt;
   applyParts();
-  state.pan = base.pan; state.tilt = base.tilt;
+  state.pan = scrollPan; state.tilt = scrollTilt;
   updateCables();
-  panArc.material.opacity = tiltArc.material.opacity = state.arcs * 0.8;
+  setArcs(state.arcs);
   // camera with inertia + a touch of parallax: feels hand-held, like a game camera
   const k = 1 - Math.exp(-dt * 12);
   smooth.pos.lerp(tmp.copy(cam.pos).add(parallax.set(mouse.x * 0.006, -mouse.y * 0.004, 0)), k);
@@ -277,9 +319,9 @@ renderer.setAnimationLoop(() => {
   camera.fov = smooth.fov;
   camera.updateProjectionMatrix();
   camera.lookAt(smooth.target);
-  bokeh.uniforms.focus.value = camera.position.distanceTo(smooth.target);
-  ledLight.position.copy(b2t(...rig.led));
-  updateChrome();
+  dof.uniforms.focus.value = camera.position.distanceTo(smooth.target);
+  updateChrome(cur, calloutRect);
+  applyTilt();
   updateReadout(pan.rotation.y * THREE.MathUtils.RAD2DEG, tilt.rotation.x * THREE.MathUtils.RAD2DEG);
-  composer.render();
+  if (poseChanged()) composer.render();
 });
