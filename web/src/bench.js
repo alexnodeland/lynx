@@ -82,9 +82,45 @@ function printTexture(anisotropy) {
   return t;
 }
 
+// moulded silicone: a fine stipple (height) and a little wear (roughness), tiled across the mat
+function stipple() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const g = c.getContext("2d"), img = g.createImageData(256, 256);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 128 + (Math.random() - 0.5) * 70;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  g.filter = "blur(1px)"; g.drawImage(c, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  // the top face's uv is the shape's x/y in metres: about 3 mm per tile
+  t.repeat.set(330, 330);
+  return t;
+}
+
+function wear() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 512;
+  const g = c.getContext("2d");
+  g.fillStyle = "rgb(150,150,150)"; g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 260; i++) {                    // smudges: smoother, shinier patches
+    const x = Math.random() * 512, y = Math.random() * 512, r = 6 + Math.random() * 40;
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, `rgba(120,120,120,${0.15 + Math.random() * 0.2})`); grad.addColorStop(1, "rgba(120,120,120,0)");
+    g.fillStyle = grad; g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(4.5, 4.5);
+  return t;
+}
+
 export function siliconeMat({ anisotropy = 8 } = {}) {
   const material = new THREE.MeshPhysicalMaterial({
-    map: printTexture(anisotropy), roughness: 0.58, sheen: 0.5, sheenRoughness: 0.45, sheenColor: 0x7fb2ee,
+    map: printTexture(anisotropy), roughness: 0.7, roughnessMap: wear(), bumpMap: stipple(), bumpScale: 0.45,
+    sheen: 0.5, sheenRoughness: 0.45, sheenColor: 0x7fb2ee,
   });
   const outline = () => roundedRect(new THREE.Shape(), -W / 2, -D / 2, W, D, 0.014);
   const floor = new THREE.ExtrudeGeometry(outline(), { depth: FLOOR, bevelEnabled: false, curveSegments: 8 });
@@ -103,10 +139,32 @@ export function siliconeMat({ anisotropy = 8 } = {}) {
   }
   mat.rotation.x = -Math.PI / 2;            // shape y -> world -z (the back edge)
   mat.name = "SiliconeMat";
+  mat.add(screwsInCups());
   return mat;
 }
 
 export const MAT_THICKNESS = FLOOR + TOP;
+
+// A few M2 x 8 screws (the build's one screw type) dropped in the screw cups, in the mat's frame
+// (shape x/y, z up from the cup floor).
+function screwsInCups() {
+  const head = new THREE.CylinderGeometry(0.00175, 0.00175, 0.0013, 18).rotateX(Math.PI / 2).translate(0, 0, 0.00065);
+  const shank = new THREE.CylinderGeometry(0.0008, 0.0007, 0.0067, 10).rotateX(Math.PI / 2).translate(0, 0, 0.0013 + 0.00335);
+  const steel = new THREE.MeshPhysicalMaterial({ color: 0x2b2c30, metalness: 1, roughness: 0.32 });   // black-oxide
+  const heads = new THREE.InstancedMesh(head, steel, 9), shanks = new THREE.InstancedMesh(shank, steel, 9);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
+  let i = 0;
+  for (const [cx, cy] of CUPS) for (let k = 0; k < 3; k++) {
+    // lying on their sides in the cup, at random angles
+    const a = Math.random() * Math.PI * 2, d = Math.random() * CUP_R * 0.45;
+    q.setFromEuler(new THREE.Euler(0, Math.PI / 2, Math.random() * Math.PI * 2));
+    m.compose(new THREE.Vector3(cx + Math.cos(a) * d, cy + Math.sin(a) * d, FLOOR + 0.00175), q, one);
+    heads.setMatrixAt(i, m); shanks.setMatrixAt(i, m); i++;
+  }
+  const screws = new THREE.Group();
+  for (const s of [heads, shanks]) { s.castShadow = s.receiveShadow = true; screws.add(s); }
+  return screws;
+}
 
 // Gull-wing legs along the long sides of a chip body (the set's chips are plain boxes): 1.27 mm pitch,
 // one InstancedMesh per chip, in the chip's own frame.
