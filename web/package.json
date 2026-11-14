@@ -7,12 +7,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "optimize-model": "npx --yes @gltf-transform/cli@4.5.1 simplify public/assets/lynx.glb public/assets/lynx.glb --ratio 0 --error 0.0005 && npx --yes @gltf-transform/cli@4.5.1 draco public/assets/lynx.glb public/assets/lynx.glb"
   },
   "dependencies": {
     "gsap": "^3.12.5",
-    "n8ao": "^1.9.4",
-    "three": "^0.170.0"
+    "n8ao": "^2.0.2",
+    "postprocessing": "^6.39.6",
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "vite": "^6.0.7"
