@@ -48,6 +48,6 @@ After re-exporting `lynx.glb` from Blender, run `npm run optimize-model`: it sim
 
 | | |
 |---|---|
-| ![Hero](../media/web/01-hero.png) | ![USB-C](../media/web/02-usb.png) |
-| ![microSD](../media/web/03-sd.png) | ![Motion](../media/web/04-motion.png) |
+| ![Hero](../media/web/01-hero.png) | ![Agents](../media/web/02-agents.png) |
+| ![Home Assistant](../media/web/03-home.png) | ![Face tracking](../media/web/04-track.png) |
 | ![Build](../media/web/05-build.png) | ![Call to action](../media/web/06-cta.png) |
