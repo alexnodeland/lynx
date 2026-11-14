@@ -12,9 +12,9 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { N8AOPass } from "n8ao";
-import { restyle, cableMaterial, powerCableMaterial } from "./materials.js";
+import { restyle, cableMaterial } from "./materials.js";
 import { DepthOfFieldPass } from "./dof.js";
-import { siliconeMat, MAT_THICKNESS } from "./bench.js";
+import { siliconeMat, addLegs, MAT_THICKNESS } from "./bench.js";
 
 export const MM = 0.001;
 // Blender (z-up, mm) -> three (y-up, m)
@@ -75,7 +75,7 @@ export async function createStage({ canvas, onProgress } = {}) {
   env.dispose();
   pmrem.dispose();
 
-  restyle(set.scene);
+  const setMats = restyle(set.scene);
   const anisotropy = renderer.capabilities.getMaxAnisotropy();   // the mat and desk are seen at grazing angles
   // the room is the HDRI now, and the flat ESD mat gives way to the silicone one
   for (const n of ["Wall", "ESDMat"]) set.scene.getObjectByName(n).visible = false;
@@ -85,6 +85,7 @@ export async function createStage({ canvas, onProgress } = {}) {
   // the chips and caliper lay on the old mat: put them on the new one (it is a little thicker)
   const lift = mat.position.y + MAT_THICKNESS - set.scene.getObjectByName("ESDMat").position.y;
   set.scene.traverse((o) => { if (/^(Chip|Caliper)/.test(o.name)) o.position.y += lift; });
+  for (const n of ["Chip0", "Chip1", "Chip2"]) addLegs(set.scene.getObjectByName(n), setMats.get("solder"));
   // a long workbench: the desk runs out of frame instead of ending at the room
   const desk = set.scene.getObjectByName("Desk");
   desk.castShadow = false;
@@ -146,10 +147,15 @@ export async function createStage({ canvas, onProgress } = {}) {
 
   // ------------------------------------------------------------------ cables (drawn from the CAD waypoints)
   lynx.scene.updateMatrixWorld(true);
-  // the label printed on the pan base's front panel (33 x 16 mm at z = -3.9 mm), riding with the base
-  const label = baseLabel(anisotropy);
-  label.position.copy(b2t(20.5, 3.8, -49));
-  holders.PanBase.attach(label);
+  // printed marks, placed on the model at rest (head upright): PAN/TILT, the eye mark and REV D on the
+  // pan base's front panel; the wordmark on the head's front, over the small embossed one
+  printOn(holders.PanBase, node("PanBase"), new THREE.Vector3(0.0205, -0.049, 0.2), 30, 12,
+    new THREE.MeshStandardMaterial({ map: printMap(30, 12, basePrint, anisotropy), transparent: true, roughness: 0.6,
+      depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  const shell = mats.get("PLA_offwhite").clone();
+  shell.color.set(0xffffff);                         // the print carries the shell's colour
+  shell.map = printMap(8, 3.2, headPrint, anisotropy);
+  printOn(holders.Base, node("Base"), new THREE.Vector3(0.0225, 0.003, 0.2), 8, 3.2, shell, 0.0003);
   tilt.add(ledLight);
   ledLight.position.copy(tilt.worldToLocal(b2t(...rig.led)));
   const groupNode = { tilt, pan, fixed: node("Root") };
@@ -162,22 +168,26 @@ export async function createStage({ canvas, onProgress } = {}) {
   }
   const internalAnchors = anchorPoints(rig.cable_internal);
   const plugNode = holders.Jig_USBC_PowerPlug;
-  // the outside cable's first two waypoints ride on the plug; the rest lie on the desk
-  const extAnchors = rig.cable_outside.concat([[rig.cable_outside.at(-1)[0] - 80, rig.cable_outside.at(-1)[1] + 40, rig.cable_outside.at(-1)[2]],
-    [rig.cable_outside.at(-1)[0] - 200, rig.cable_outside.at(-1)[1] + 90, rig.cable_outside.at(-1)[2]]])
+  // the outside cable's first two waypoints ride on the plug; then it lies on the mat, in a loose loop
+  // around the base (clear of the chips) before it leaves the bench to the back left. Blender mm.
+  const floorZ = rig.cable_outside.at(-1)[2];
+  const LOOP = [[-38, 72], [-42, 30], [-32, -12], [-5, -32], [30, -36], [60, -22], [72, 10], [66, 48], [45, 80],
+    [10, 108], [-50, 122], [-130, 148], [-250, 190]];
+  const extAnchors = rig.cable_outside.concat(LOOP.map(([x, y]) => [x, y, floorZ]))
     .map((p, i) => { const n = i < 2 ? plugNode : groupNode.fixed; return { n, local: n.worldToLocal(b2t(...p)) }; });
-  function cableMesh(anchors, radius, material) {
+  function cableMesh(anchors, radius, material, segments) {
     const mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
     mesh.castShadow = true;
-    mesh.userData = { anchors, radius };
+    mesh.userData = { anchors, radius, segments };
     scene.add(mesh);
     return mesh;
   }
-  const cables = [cableMesh(internalAnchors, 0.002, cableMaterial()), cableMesh(extAnchors, 0.0019, powerCableMaterial())];
+  // both braided; the bump's repeat follows each cable's length so the weave is the same size on both
+  const cables = [cableMesh(internalAnchors, 0.002, cableMaterial(80), 160), cableMesh(extAnchors, 0.0021, cableMaterial(400), 420)];
   const tmp = new THREE.Vector3();
   // cables: one TubeGeometry per cable, rewritten in place (no per-frame allocation or GPU re-create),
   // and only when an anchor actually moved
-  const TUBE_SEG = 160, TUBE_RAD = 12;
+  const TUBE_RAD = 12;
   const _n = new THREE.Vector3(), _v = new THREE.Vector3();
   function updateCables() {
     for (const c of cables) {
@@ -192,17 +202,17 @@ export async function createStage({ canvas, onProgress } = {}) {
       u.curve ??= new THREE.CatmullRomCurve3(u.pts, false, "centripetal");
       if (!u.built) {
         c.geometry.dispose();
-        c.geometry = new THREE.TubeGeometry(u.curve, TUBE_SEG, u.radius, TUBE_RAD);
+        c.geometry = new THREE.TubeGeometry(u.curve, u.segments, u.radius, TUBE_RAD);
         c.geometry.attributes.position.setUsage(THREE.DynamicDrawUsage);
         c.geometry.attributes.normal.setUsage(THREE.DynamicDrawUsage);
         u.built = true;
         continue;
       }
-      const fr = u.curve.computeFrenetFrames(TUBE_SEG, false);
+      const fr = u.curve.computeFrenetFrames(u.segments, false);
       const pos = c.geometry.attributes.position.array, nor = c.geometry.attributes.normal.array;
       let k = 0;
-      for (let i = 0; i <= TUBE_SEG; i++) {
-        u.curve.getPointAt(i / TUBE_SEG, _v);
+      for (let i = 0; i <= u.segments; i++) {
+        u.curve.getPointAt(i / u.segments, _v);
         const N = fr.normals[i], B = fr.binormals[i];
         for (let j = 0; j <= TUBE_RAD; j++) {
           const a = (j / TUBE_RAD) * Math.PI * 2, sn = Math.sin(a), cs = -Math.cos(a);
@@ -294,24 +304,48 @@ export async function createStage({ canvas, onProgress } = {}) {
   };
 }
 
-// Light-grey print on the gunmetal, like the finished-hardware renders: PAN/TILT, the eye mark, REV D.
-function baseLabel(anisotropy) {
-  const W = 30, H = 12, PX = 24;                     // millimetres, pixels per millimetre
-  const c = document.createElement("canvas");
-  c.width = W * PX; c.height = H * PX;
+// A print laid flat on a part: a ray from the front finds the face, the w x h mm print sits on it, lifted
+// clear of the surface, and rides with the part's holder (explode, pan and tilt included).
+function printOn(holder, part, from, w, h, material, lift = 0.00005) {
+  const hit = new THREE.Raycaster(from, new THREE.Vector3(0, 0, -1)).intersectObject(part, true)[0];
+  const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+  const print = new THREE.Mesh(new THREE.PlaneGeometry(w * MM, h * MM), material);
+  print.position.copy(hit.point).addScaledVector(normal, lift);
+  print.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+  holder.attach(print);
+}
+
+// a print's artwork: drawn at 24 px/mm (in millimetres) with the page's fonts
+function printMap(w, h, draw, anisotropy) {
+  const PX = 24, c = document.createElement("canvas");
+  c.width = w * PX; c.height = h * PX;
   const g = c.getContext("2d");
-  g.fillStyle = g.strokeStyle = "rgba(214,218,224,0.86)";
-  g.textBaseline = "middle";
-  g.font = `600 ${2 * PX}px "Martian Mono", ui-monospace, monospace`;
-  g.textAlign = "left"; g.fillText("PAN/TILT", 1.2 * PX, H * PX / 2);
-  g.textAlign = "right"; g.fillText("REV D", (W - 1.2) * PX, H * PX / 2);
-  g.lineWidth = 0.45 * PX;                           // the eye mark between them
-  g.beginPath(); g.arc(W * PX / 2, H * PX / 2, 2.1 * PX, 0, Math.PI * 2); g.stroke();
-  g.beginPath(); g.arc(W * PX / 2, H * PX / 2, 0.8 * PX, 0, Math.PI * 2); g.fill();
+  g.scale(PX, PX);
+  draw(g, w, h);
   const map = new THREE.CanvasTexture(c);
   map.colorSpace = THREE.SRGBColorSpace;
   map.anisotropy = anisotropy;
-  const material = new THREE.MeshStandardMaterial({ map, transparent: true, roughness: 0.6, depthWrite: false,
-    polygonOffset: true, polygonOffsetFactor: -2 });
-  return new THREE.Mesh(new THREE.PlaneGeometry(W * MM, H * MM), material);
+  return map;
+}
+
+// light grey on the gunmetal, like the finished-hardware renders: PAN/TILT, the eye mark, REV D
+function basePrint(g, w, h) {
+  g.fillStyle = g.strokeStyle = "rgba(214,218,224,0.86)";
+  g.textBaseline = "middle";
+  g.font = '600 2px "Martian Mono", ui-monospace, monospace';
+  g.textAlign = "left"; g.fillText("PAN/TILT", 1.2, h / 2);
+  g.textAlign = "right"; g.fillText("REV D", w - 1.2, h / 2);
+  g.lineWidth = 0.45;
+  g.beginPath(); g.arc(w / 2, h / 2, 2.1, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.arc(w / 2, h / 2, 0.8, 0, Math.PI * 2); g.fill();
+}
+
+// the wordmark in mid grey on the shell's white (the background is the shell's own colour)
+function headPrint(g, w, h) {
+  g.fillStyle = "#e8e9e8"; g.fillRect(0, 0, w, h);
+  g.fillStyle = "#8b9097";
+  g.font = "800 2.4px Archivo, system-ui, sans-serif";
+  g.fontStretch = "expanded";
+  g.textAlign = "right"; g.textBaseline = "middle";
+  g.fillText("lynx", w - 0.4, h / 2);
 }
