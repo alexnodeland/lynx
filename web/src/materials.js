@@ -63,9 +63,12 @@ const LIBRARY = {
 // parts that share a glTF material with others but get their own finish
 const BY_NODE = { PanBase: "anodised_gunmetal", PanCap: "anodised_gunmetal" };
 
-// braided sleeving (the cables carry a tube UV, so the weave maps along them)
-export const cableMaterial = () => P({ color: 0x18181a, roughness: 0.6, sheen: 0.6, sheenColor: 0x3a3a3a, bumpMap: braidBump, bumpScale: 1.4 });
-export const powerCableMaterial = () => LIBRARY.cable_rubber();
+// braided sleeving: the cables carry a tube UV, so the weave maps along them, `repeat` times
+export function cableMaterial(repeat) {
+  const bumpMap = braidBump.clone();
+  bumpMap.repeat.set(repeat, 2);
+  return P({ color: 0x18181a, roughness: 0.6, sheen: 0.6, sheenColor: 0x3a3a3a, bumpMap, bumpScale: 1.4 });
+}
 
 export function restyle(root) {
   const cache = new Map();

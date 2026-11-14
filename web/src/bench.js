@@ -107,3 +107,22 @@ export function siliconeMat({ anisotropy = 8 } = {}) {
 }
 
 export const MAT_THICKNESS = FLOOR + TOP;
+
+// Gull-wing legs along the long sides of a chip body (the set's chips are plain boxes): 1.27 mm pitch,
+// one InstancedMesh per chip, in the chip's own frame.
+export function addLegs(chip, material) {
+  chip.geometry.computeBoundingBox();
+  const size = chip.geometry.boundingBox.getSize(new THREE.Vector3());
+  const alongX = size.x >= size.z, length = alongX ? size.x : size.z, width = alongX ? size.z : size.x;
+  const count = Math.max(2, Math.floor(length / 0.00127));
+  const legs = new THREE.InstancedMesh(new THREE.BoxGeometry(0.00042, 0.00022, 0.0011), material, count * 2);
+  const m = new THREE.Matrix4(), turn = new THREE.Matrix4().makeRotationY(alongX ? 0 : Math.PI / 2);
+  let i = 0;
+  for (const side of [-1, 1]) for (let k = 0; k < count; k++) {
+    const a = (k - (count - 1) / 2) * 0.00127, b = side * (width / 2 + 0.0003), y = -size.y / 2 + 0.00011;
+    m.makeTranslation(alongX ? a : b, y, alongX ? b : a).multiply(turn);
+    legs.setMatrixAt(i++, m);
+  }
+  legs.castShadow = true;
+  chip.add(legs);
+}
