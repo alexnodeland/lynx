@@ -59,8 +59,17 @@ function toShot(tl, name, at, dur = 1) {
   tl.to(cam, { fov: s.fov, shift: s.shift, duration: dur, ease: "power2.inOut" }, at);
 }
 const beats = [...document.querySelectorAll(".beat")];
-let beatAt = [];
-const measureBeats = () => { const H = document.documentElement.scrollHeight - innerHeight; beatAt = beats.map((b) => b.offsetTop / H); };
+// Where each chapter starts, as timeline progress. Wide screens: when its section's top reaches the top
+// of the screen (the module beside the product fades in about then). Phones and portrait tablets dock
+// a chapter's module from when its section rises into view until the section's end reaches the bottom,
+// so there a chapter starts as its section enters at the bottom, and the scene changes with the module.
+const DOCKED = matchMedia("(max-width: 760px), (max-aspect-ratio: 17/20)");
+let beatAt = [], chapterLead = 0;
+const measureBeats = () => {
+  const H = document.documentElement.scrollHeight - innerHeight, shift = DOCKED.matches ? innerHeight : 0;
+  chapterLead = DOCKED.matches ? 0 : innerHeight * 0.45;
+  beatAt = beats.map((b, i) => (i ? Math.max(0, b.offsetTop - shift) : 0) / H);
+};
 measureBeats();
 const at = (i) => beatAt[i];   // cached: no layout reads inside the frame loop
 
@@ -189,7 +198,7 @@ function updateReadout(livePan, liveTilt) {
 }
 const chapters = beats.map((b) => ({ anchor: b.dataset.anchor, slab: b.querySelector(".slab"), face: b.querySelector(".slab .face") }));
 function currentChapter() {
-  const y = (goal * scrollRange + viewH * 0.45) / scrollRange;
+  const y = (goal * scrollRange + chapterLead) / scrollRange;
   let cur = 0;
   beatAt.forEach((t, i) => { if (t <= y) cur = i; });
   return cur;

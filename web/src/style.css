@@ -134,7 +134,7 @@ body::after { opacity: .07; mix-blend-mode: soft-light;
 .beat[data-beat="assembly"] { min-height: 170vh; }
 
 /* ---------------------------------------------------------------- modules: datasheet panels on perfboard */
-.slab { --rx: 0deg; --ry: 0deg; --mx: 30%; --my: 20%; position: relative; pointer-events: auto; width: min(430px, 88vw);
+.slab { --rx: 0deg; --ry: 0deg; --mx: 30%; --my: 20%; position: relative; pointer-events: auto; width: min(450px, 88vw);
   perspective: 1100px; opacity: 0; transform: translateY(36px); transition: opacity .8s var(--ease), transform .8s var(--ease); }
 .slab.in { opacity: 1; transform: none; }
 .slab.left { margin-right: auto; } .slab.right { margin-left: auto; }
@@ -149,7 +149,7 @@ body::after { opacity: .07; mix-blend-mode: soft-light;
 .slab h1, .slab h2 { transform: translateZ(30px); }
 .slab p, .slab .stats { transform: translateZ(14px); }
 .slab .eyebrow { transform: translateZ(20px); }
-.slab h1 { font: 760 clamp(32px, 3vw, 44px)/1.0 var(--display); font-stretch: 118%; letter-spacing: -0.035em; margin: 0 0 16px; }
+.slab h1 { font: 760 clamp(30px, 2.7vw, 40px)/1.0 var(--display); font-stretch: 118%; letter-spacing: -0.035em; margin: 0 0 16px; }
 .slab h2 { font: 720 clamp(23px, 2vw, 29px)/1.06 var(--display); font-stretch: 114%; letter-spacing: -0.03em; margin: 0 0 12px; }
 .slab p { color: var(--muted); font-size: 15px; line-height: 1.62; }
 .slab p em { font-style: normal; color: var(--ink); }
@@ -248,6 +248,8 @@ body::after { opacity: .07; mix-blend-mode: soft-light;
   .hud { padding: 16px 18px 20px; }
   .brand { font-size: 19px; }
   .brand .rev { display: none; }
+  /* a module docks from when its chapter rises into view until the chapter's end (a rail's height of
+     padding) reaches the screen's bottom and carries it up; main.js times the scene to the same span */
   .beat { align-items: flex-end; padding: 0 12px calc(86px + env(safe-area-inset-bottom)); }
   .slab { position: sticky; bottom: calc(86px + env(safe-area-inset-bottom)); width: min(100%, 560px); margin-inline: auto; }
   .slab, .slab.in { opacity: 1; transform: none; transition: none; }   /* motion follows the scroll, not a timer */
