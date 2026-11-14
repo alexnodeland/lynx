@@ -294,7 +294,7 @@ applyParts();
 updateCables();
 // compile every material up front: parts that first enter the frame mid-scroll would otherwise stall it
 await renderer.compileAsync(scene, camera);
-composer.render();
+render();
 document.getElementById("loader").classList.add("done");
 const introTl = REDUCED ? null : intro();
 const timer = new THREE.Timer();

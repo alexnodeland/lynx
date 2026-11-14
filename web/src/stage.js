@@ -282,6 +282,21 @@ export async function createStage({ canvas, onProgress } = {}) {
   // second and a half the pixel ratio steps down (to 0.75 at the lowest). It never steps back up within
   // a visit: behind vsync, a fast GPU and a just-fast-enough one look the same.
   let lastFrame = -Infinity, slowFor = 0;
+
+  // The key light and the bench never move, so the shadow map is only redrawn when the product does
+  // (pan, tilt, lift, a part flying in) or a page says parts were shown or hidden (invalidateShadows).
+  renderer.shadowMap.autoUpdate = false;
+  const holderList = Object.values(holders);
+  const partsNow = new Float64Array(3 + holderList.length * 3), partsShadowed = new Float64Array(partsNow.length).fill(NaN);
+  function invalidateShadows() { partsShadowed.fill(NaN); }
+  function partsMoved() {
+    partsNow[0] = pan.rotation.y; partsNow[1] = tilt.rotation.x; partsNow[2] = tilt.position.y;
+    holderList.forEach((h, i) => h.position.toArray(partsNow, 3 + i * 3));
+    const moved = partsNow.some((v, i) => v !== partsShadowed[i]);   // NaN (invalidated) counts as moved
+    if (moved) partsShadowed.set(partsNow);
+    return moved;
+  }
+
   function render(time = performance.now()) {
     const dt = time - lastFrame;
     lastFrame = time;
@@ -294,13 +309,14 @@ export async function createStage({ canvas, onProgress } = {}) {
         composer.setPixelRatio(ratio - 0.25);
       }
     }
+    if (partsMoved()) renderer.shadowMap.needsUpdate = true;
     composer.render();
   }
 
   return {
     renderer, scene, camera, key, lynx, set, rig, mats, node, pan, tilt, holders, restPos, setLed,
     EXPL, explode, state, LIFT_MM, applyParts, groupNode, cables, updateCables, tmp, setArcs,
-    composer, render, ao, dof,
+    composer, render, invalidateShadows, ao, dof,
   };
 }
 
