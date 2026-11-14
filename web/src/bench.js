@@ -1,0 +1,109 @@
+// SPDX-License-Identifier: MIT
+// The silicone repair mat the product stands on, built procedurally: a thin floor, a top layer with
+// recessed trays and screw cups cut through it, soft bevelled edges, and white print on top.
+import * as THREE from "three";
+
+const W = 0.52, D = 0.36;                  // metres, x by z
+const FLOOR = 0.001, TOP = 0.0023;         // layer thicknesses: the trays are TOP deep
+const BLUE = "#1f5fa6";
+
+function roundedRect(shape, x, y, w, h, r) {
+  shape.moveTo(x + r, y);
+  shape.lineTo(x + w - r, y);
+  shape.quadraticCurveTo(x + w, y, x + w, y + r);
+  shape.lineTo(x + w, y + h - r);
+  shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  shape.lineTo(x + r, y + h);
+  shape.quadraticCurveTo(x, y + h, x, y + h - r);
+  shape.lineTo(x, y + r);
+  shape.quadraticCurveTo(x, y, x + r, y);
+  return shape;
+}
+
+// trays and cups in shape space (x right, y toward the back edge; the mat is centred on 0,0)
+const TRAYS = [
+  [-0.235, 0.115, 0.088, 0.052], [-0.138, 0.115, 0.088, 0.052], [-0.041, 0.115, 0.13, 0.052],
+  [0.098, 0.115, 0.06, 0.052], [0.167, 0.115, 0.06, 0.052],
+];
+const CUPS = [[-0.215, 0.07], [-0.215, 0.035], [-0.215, 0.0]];
+const CUP_R = 0.013;
+
+function printTexture(anisotropy) {
+  const px = 2400, c = document.createElement("canvas");
+  c.width = px; c.height = Math.round((px * D) / W);
+  const g = c.getContext("2d"), s = px / W;                      // pixels per metre
+  const X = (x) => (x + W / 2) * s, Y = (y) => (D / 2 - y) * s;   // shape space -> canvas
+  g.fillStyle = BLUE; g.fillRect(0, 0, c.width, c.height);
+  // a little unevenness in the silicone
+  for (let i = 0; i < 9000; i++) {
+    g.fillStyle = `rgba(${Math.random() < 0.5 ? "0,10,40" : "200,225,255"},${Math.random() * 0.03})`;
+    g.fillRect(Math.random() * c.width, Math.random() * c.height, 4, 4);
+  }
+  const ink = (a) => `rgba(222,236,250,${a})`;
+  g.lineCap = "round";
+  // outlines printed around the trays and cups
+  g.strokeStyle = ink(0.5); g.lineWidth = 3;
+  for (const [x, y, w, h] of TRAYS) {
+    g.beginPath(); g.roundRect(X(x) - 9, Y(y + h) - 9, w * s + 18, h * s + 18, 0.008 * s); g.stroke();
+  }
+  for (const [x, y] of CUPS) { g.beginPath(); g.arc(X(x), Y(y), CUP_R * s + 9, 0, Math.PI * 2); g.stroke(); }
+  // a 10 mm work grid on the right, a heavier line every 50 mm
+  const gx0 = 0.09, gx1 = 0.245, gy0 = -0.15, gy1 = 0.09;
+  for (let x = gx0; x <= gx1 + 1e-6; x += 0.01) {
+    const major = Math.round((x - gx0) / 0.01) % 5 === 0;
+    g.strokeStyle = ink(major ? 0.42 : 0.2); g.lineWidth = major ? 2.4 : 1.4;
+    g.beginPath(); g.moveTo(X(x), Y(gy0)); g.lineTo(X(x), Y(gy1)); g.stroke();
+  }
+  for (let y = gy0; y <= gy1 + 1e-6; y += 0.01) {
+    const major = Math.round((y - gy0) / 0.01) % 5 === 0;
+    g.strokeStyle = ink(major ? 0.42 : 0.2); g.lineWidth = major ? 2.4 : 1.4;
+    g.beginPath(); g.moveTo(X(gx0), Y(y)); g.lineTo(X(gx1), Y(y)); g.stroke();
+  }
+  // a millimetre rule along the front edge
+  g.strokeStyle = ink(0.6);
+  for (let i = 0; i <= 400; i++) {
+    const x = -0.2 + i * 0.001, len = i % 10 === 0 ? 0.008 : i % 5 === 0 ? 0.005 : 0.0028;
+    g.lineWidth = i % 10 === 0 ? 2.4 : 1.4;
+    g.beginPath(); g.moveTo(X(x), Y(-D / 2 + 0.012)); g.lineTo(X(x), Y(-D / 2 + 0.012 + len)); g.stroke();
+  }
+  g.fillStyle = ink(0.62); g.textBaseline = "middle";
+  g.font = `600 ${0.0048 * s}px "JetBrains Mono", ui-monospace, monospace`;
+  for (let cm = 0; cm <= 40; cm += 5) g.fillText(String(cm), X(-0.2 + cm * 0.01) + 6, Y(-D / 2 + 0.012 + 0.0115));
+  g.font = `700 ${0.0075 * s}px "Inter Tight", system-ui, sans-serif`;
+  g.fillText("lynx", X(-0.235), Y(-0.04));
+  g.font = `500 ${0.0042 * s}px "JetBrains Mono", ui-monospace, monospace`;
+  g.fillText("SILICONE WORK MAT · 500 °C · ESD SAFE", X(-0.235), Y(-0.052));
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = anisotropy;
+  // ExtrudeGeometry's top face takes the shape's x/y (metres) as uv: map the mat's extent onto 0..1
+  t.repeat.set(1 / W, 1 / D);
+  t.offset.set(0.5, 0.5);
+  return t;
+}
+
+export function siliconeMat({ anisotropy = 8 } = {}) {
+  const material = new THREE.MeshPhysicalMaterial({
+    map: printTexture(anisotropy), roughness: 0.58, sheen: 0.5, sheenRoughness: 0.45, sheenColor: 0x7fb2ee,
+  });
+  const outline = () => roundedRect(new THREE.Shape(), -W / 2, -D / 2, W, D, 0.014);
+  const floor = new THREE.ExtrudeGeometry(outline(), { depth: FLOOR, bevelEnabled: false, curveSegments: 8 });
+  const topShape = outline();
+  for (const [x, y, w, h] of TRAYS) topShape.holes.push(roundedRect(new THREE.Path(), x, y, w, h, 0.007));
+  for (const [x, y] of CUPS) topShape.holes.push(new THREE.Path().absarc(x, y, CUP_R, 0, Math.PI * 2, true));
+  const top = new THREE.ExtrudeGeometry(topShape, {
+    depth: TOP - 0.0006, bevelEnabled: true, bevelThickness: 0.0006, bevelSize: 0.0008, bevelSegments: 3, curveSegments: 10,
+  });
+  top.translate(0, 0, FLOOR);
+  const mat = new THREE.Group();
+  for (const g of [floor, top]) {
+    const m = new THREE.Mesh(g, material);
+    m.receiveShadow = true;
+    mat.add(m);
+  }
+  mat.rotation.x = -Math.PI / 2;            // shape y -> world -z (the back edge)
+  mat.name = "SiliconeMat";
+  return mat;
+}
+
+export const MAT_THICKNESS = FLOOR + TOP;
