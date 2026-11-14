@@ -1,0 +1,70 @@
+/* SPDX-License-Identifier: MIT */
+/* the web flasher: the site's modules and keys on a plain page (no scene), over a perfboard backdrop */
+body.flash { min-height: 100vh;
+  background:
+    radial-gradient(900px 520px at 78% -10%, rgba(95,240,161,.09), transparent 60%),
+    radial-gradient(circle, rgba(255,255,255,.05) .9px, transparent 1.3px) 0 0 / 14px 14px,
+    #0a0b0d; }
+body.flash::before { display: none; }
+body.flash .hud { position: sticky; background: linear-gradient(to bottom, rgba(10,11,13,.92), rgba(10,11,13,.6) 70%, transparent); }
+body.flash main { position: relative; z-index: 2; max-width: 760px; margin: 0 auto; padding: 24px 20px 96px; display: grid;
+  grid-template-columns: minmax(0, 1fr); gap: 18px; }   /* minmax: long code lines scroll inside their block, not the page */
+
+.intro { padding: 28px 0 14px; }
+.kicker { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; font: 500 10px/1 var(--mono); letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted); }
+.kicker .tag, .slab .eyebrow .tag { font: 700 10px/1 var(--mono); letter-spacing: .08em; color: var(--signal-ink); background: var(--signal);
+  padding: 4px 6px 3px; border-radius: 2px; }
+.kicker .spec { margin-left: auto; color: var(--dim); }
+.intro h1 { font: 780 clamp(36px, 6vw, 58px)/.98 var(--display); font-stretch: 120%; letter-spacing: -0.035em; margin: 0 0 18px; }
+.lede { color: var(--muted); font-size: 17px; line-height: 1.6; max-width: 58ch; }
+
+/* the landing page's modules, but in normal flow: no docking, no scroll-driven fades */
+body.flash .slab, body.flash .slab.in { position: relative; bottom: auto; top: auto; width: 100%; margin: 0; opacity: 1; transform: none; }
+body.flash .slab .face { padding: 20px 24px 24px; }
+body.flash .slab .face, body.flash .slab .face * { transform: none; }
+body.flash .slab p:not(.eyebrow, .tip) { color: var(--muted); font-size: 15px; line-height: 1.6; margin: 0 0 12px; }
+body.flash .slab p:last-child { margin-bottom: 0; }
+body.flash a:not(.key):not(.brand) { color: var(--signal); text-underline-offset: 3px; }
+code { font: 500 .86em var(--mono); color: var(--ink); background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 2px;
+  box-shadow: inset 0 0 0 1px var(--line); }
+pre { font: 400 12px/1.75 var(--mono); color: var(--ink); background: rgba(4,5,7,.75); padding: 14px 16px; margin: 0 0 14px;
+  overflow-x: auto; box-shadow: inset 0 0 0 1px var(--line); }
+pre .dim { color: var(--dim); }
+
+/* the three steps: the build guide's numbered flow, always lit */
+.steps-list { counter-reset: f; list-style: none; margin: 0; padding: 0; display: grid; font: 400 14px/1.55 var(--display); }
+.steps-list li { counter-increment: f; display: grid; grid-template-columns: 38px 1fr; padding: 12px 0; border-top: 1px solid var(--line);
+  color: var(--muted); }
+.steps-list li:last-child { border-bottom: 1px solid var(--line); }
+.steps-list li::before { content: counter(f, decimal-leading-zero); grid-row: span 2; font: 600 11px/1.9 var(--mono); color: var(--signal); }
+.steps-list li b { color: var(--ink); font-weight: 600; }
+
+.install { display: grid; gap: 14px; margin-top: 20px; }
+.install .key { appearance: none; border: 0; background: none; padding: 0; font: inherit; cursor: pointer; justify-self: start; }
+.install .key .cap { min-width: 260px; }
+.tip { margin: 0 !important; padding: 10px 12px 10px 14px; font-size: 13.5px !important; color: #f3e4c8 !important;
+  background: rgba(255,181,71,.08); box-shadow: inset 3px 0 0 var(--amber), inset 0 0 0 1px rgba(255,181,71,.22); }
+.tip::before { content: "tip"; font: 700 9.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: #1d1203;
+  background: var(--amber); padding: 2px 5px 1px; border-radius: 2px; margin-right: 8px; vertical-align: 1px; }
+.tip.warn { color: #ffd3c9 !important; background: rgba(255,90,70,.08); box-shadow: inset 3px 0 0 #ff6a55, inset 0 0 0 1px rgba(255,106,85,.25); }
+.tip.warn::before { content: "note"; background: #ff6a55; }
+
+/* what you get: the Home Assistant chapter's entity tiles */
+.features { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.features li { display: grid; gap: 4px; align-content: start; padding: 12px 14px; background: rgba(255,255,255,.035); box-shadow: inset 0 0 0 1px var(--line); }
+.features li span { font: 500 9px var(--mono); text-transform: uppercase; letter-spacing: .16em; color: var(--dim); }
+.features li b { font: 650 16px var(--display); font-stretch: 110%; color: var(--ink); }
+.features li small { color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+.key.small .cap { white-space: nowrap; }
+
+@media (max-width: 760px) {
+  body.flash .hud { padding: 14px 16px 18px; }
+  body.flash .hud nav .key.small:not(.here):last-child { display: none; }   /* GitHub: the page links it below */
+  body.flash main { padding: 12px 12px 64px; gap: 12px; }
+  .intro { padding: 18px 4px 6px; }
+  body.flash .slab .face { padding: 16px 16px 18px; }
+  .features { grid-template-columns: 1fr; }
+  .install .key, .install .key .cap { width: 100%; min-width: 0; }
+}

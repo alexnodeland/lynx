@@ -1,7 +1,7 @@
 # lynx firmware
 
 [![Firmware](https://github.com/alexnodeland/lynx/actions/workflows/firmware.yml/badge.svg)](https://github.com/alexnodeland/lynx/actions/workflows/firmware.yml)
-[![MCP](https://img.shields.io/badge/MCP-2026--07--28%20%2B%202025--11--25-7fd6a4)](#mcp)
+[![MCP](https://img.shields.io/badge/MCP-2026--07--28%20%2B%202025--11--25-5ff0a1)](#mcp)
 [![PlatformIO](https://img.shields.io/badge/PlatformIO-espressif32%406.9.0-f5822a?logo=platformio&logoColor=white)](platformio.ini)
 [![Board](https://img.shields.io/badge/board-seeed__xiao__esp32s3-555)](platformio.ini)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](../../LICENSES/MIT.txt)

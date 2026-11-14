@@ -192,6 +192,8 @@ body::after { opacity: .07; mix-blend-mode: soft-light;
 .key.accent:hover .cap { background: #b9ffd8; }
 .key.accent:hover .cap::after { color: var(--signal-ink); }
 .key.small { --c: 7px; }
+.key.small.here .cap { background: var(--signal); }                 /* the page you're on */
+.key.small.here .cap::before { background: var(--signal-soft); }
 .key.small .cap { min-width: 0; padding: 10px 14px 9px; gap: 0; font: 600 10.5px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
 .key.small .cap::after { display: none; }
 

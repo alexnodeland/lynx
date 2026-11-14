@@ -108,7 +108,7 @@ function wear() {
   for (let i = 0; i < 260; i++) {                    // smudges: smoother, shinier patches
     const x = Math.random() * 512, y = Math.random() * 512, r = 6 + Math.random() * 40;
     const grad = g.createRadialGradient(x, y, 0, x, y, r);
-    grad.addColorStop(0, `rgba(120,120,120,${0.15 + Math.random() * 0.2})`); grad.addColorStop(1, "rgba(120,120,120,0)");
+    grad.addColorStop(0, `rgba(130,130,130,${0.08 + Math.random() * 0.12})`); grad.addColorStop(1, "rgba(130,130,130,0)");
     g.fillStyle = grad; g.fillRect(x - r, y - r, r * 2, r * 2);
   }
   const t = new THREE.CanvasTexture(c);
@@ -119,7 +119,7 @@ function wear() {
 
 export function siliconeMat({ anisotropy = 8 } = {}) {
   const material = new THREE.MeshPhysicalMaterial({
-    map: printTexture(anisotropy), roughness: 0.7, roughnessMap: wear(), bumpMap: stipple(), bumpScale: 0.45,
+    map: printTexture(anisotropy), roughness: 0.78, roughnessMap: wear(), bumpMap: stipple(), bumpScale: 0.45,
     sheen: 0.5, sheenRoughness: 0.45, sheenColor: 0x7fb2ee,
   });
   const outline = () => roundedRect(new THREE.Shape(), -W / 2, -D / 2, W, D, 0.014);

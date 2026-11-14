@@ -44,9 +44,9 @@ function look(k, mode) {
 }
 
 // highlight: a pulsing additive overlay on the parts a step is about, and a glowing cable while it's routed
-const glow = new THREE.MeshBasicMaterial({ color: 0x7fd6a4, transparent: true, opacity: 0, depthWrite: false,
+const glow = new THREE.MeshBasicMaterial({ color: 0x5ff0a1, transparent: true, opacity: 0, depthWrite: false,
   blending: THREE.AdditiveBlending });
-const cableGlow = new THREE.MeshStandardMaterial({ color: 0x7fd6a4, emissive: 0x7fd6a4, emissiveIntensity: 1.4, roughness: 0.4 });
+const cableGlow = new THREE.MeshStandardMaterial({ color: 0x5ff0a1, emissive: 0x5ff0a1, emissiveIntensity: 1.4, roughness: 0.4 });
 const cableMat = cables[0].material;
 let glowTl = null;
 function highlight(keys) {

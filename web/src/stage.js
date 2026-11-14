@@ -53,9 +53,6 @@ export async function createStage({ canvas, onProgress } = {}) {
   key.shadow.normalBias = 0.0004;
   key.shadow.radius = 5;
   scene.add(key);
-  // the status LED's spill: it sits inside the lid and point lights cast no shadow here, so it is kept
-  // faint and short, or it shines straight through the shell onto the yoke. Rides on the head, see below.
-  const ledLight = new THREE.PointLight(0x40ff88, 0, 0.035, 2);
 
   // ------------------------------------------------------------------ loading
   const manager = new THREE.LoadingManager();
@@ -175,9 +172,10 @@ export async function createStage({ canvas, onProgress } = {}) {
   const LIFT_MM = 22;
 
   function setLed(amount) {
+    // the LED and its light pipe glow (and bloom); no light is cast: from inside the shell, with no
+    // shadow, a point light only tinted the parts around the head green
     led.emissiveIntensity = amount * 6;
     lightPipe.emissiveIntensity = amount * 1.2;
-    ledLight.intensity = amount * 0.003;
   }
 
   function applyParts() {
@@ -210,8 +208,6 @@ export async function createStage({ canvas, onProgress } = {}) {
   shell.map = printMap(8, 3.2, headPrint, anisotropy);
   printOn(holders.Base, node("Base"), new THREE.Vector3(0.0225, 0.003, 0.2), 8, 3.2, shell, 0.0003);
 
-  tilt.add(ledLight);
-  ledLight.position.copy(tilt.worldToLocal(b2t(...rig.led)));
   const groupNode = { tilt, pan, fixed: node("Root") };
   function anchorPoints(list) {
     // waypoint -> its rig group's local frame, captured at rest so it follows that group afterwards
@@ -289,7 +285,7 @@ export async function createStage({ canvas, onProgress } = {}) {
     // writes depth so depth of field keeps it sharp at the pivot; hidden while faded out (see setArcs)
     return new THREE.Line(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0 }));
   }
-  const panArc = arc(0.05, -Math.PI / 2 - Math.PI / 2, -Math.PI / 2 + Math.PI / 2, 0x7fd6a4);
+  const panArc = arc(0.05, -Math.PI / 2 - Math.PI / 2, -Math.PI / 2 + Math.PI / 2, 0x5ff0a1);
   panArc.position.copy(b2t(rig.pivots.pan_x, rig.pivots.cy, rig.pivots.floor_z + 26));
   scene.add(panArc);
   const tiltArc = arc(0.045, -Math.PI / 3, Math.PI / 3, 0xf0c48a);

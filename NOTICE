@@ -5,3 +5,7 @@ lynx is licensed per folder. The root LICENSE file is the MIT licence, which cov
   Documentation and media (docs/, media/, *.md)                     CC-BY-SA-4.0  LICENSES/CC-BY-SA-4.0.txt
 
 Each file's SPDX-License-Identifier header is authoritative where it is present.
+
+Third-party assets bundled with the website (web/public/assets/), all CC0 1.0 from Poly Haven
+(https://polyhaven.com): the Artist Workshop HDRI (workshop_512.hdr), and the Retro Multimeter, Pliers
+and Measuring Tape 01 models (props/). The desk's oak and rubber textures in set.glb are also Poly Haven CC0.

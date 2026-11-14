@@ -6,30 +6,50 @@
 namespace lynx {
 
 static const char kStyleCss[] = R"CSS(
-:root{--bg:#0c0d10;--ink:#f3f1ec;--muted:#a9a8a3;--dim:#6d6c69;--accent:#7fd6a4;--edge:rgba(255,255,255,.08);--glass:rgba(22,23,27,.8)}
-*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif}
-main{max-width:760px;margin:0 auto;padding:28px 16px 60px}
-h1{font-size:30px;letter-spacing:-.03em;margin:0 0 4px}h2{font-size:17px;margin:0 0 12px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px;margin-bottom:24px}
-.brand i{width:20px;height:20px;border-radius:50%;border:3px solid var(--accent);display:grid;place-items:center}
-.brand i:after{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent)}
-.brand small{font:500 12px ui-monospace,Menlo,monospace;color:var(--dim);margin-left:auto}
-.card{background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.01) 45%),var(--glass);border-radius:16px;padding:20px;margin:0 0 16px;
- box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 0 0 1px var(--edge),0 20px 40px -20px rgba(0,0,0,.7)}
-p{color:var(--muted);margin:0 0 12px}.mono,code,pre{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
-pre{background:#08090b;border-radius:10px;padding:12px;overflow-x:auto;color:#d8d6cf;margin:0 0 10px;white-space:pre-wrap;word-break:break-all}
-label{display:block;font-size:13px;color:var(--muted);margin:10px 0 6px}
-input,select{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--edge);background:#08090b;color:var(--ink);font-size:15px}
-input[type=range]{padding:0;accent-color:var(--accent)}
-button,.btn{appearance:none;border:0;cursor:pointer;display:inline-block;text-decoration:none;padding:11px 18px;border-radius:11px;font-family:inherit;font-weight:600;font-size:14px;color:var(--ink);
- background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.03));box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 0 0 1px var(--edge),0 6px 16px -8px #000}
-button.go{background:linear-gradient(160deg,rgba(127,214,164,.38),rgba(127,214,164,.12));}
-button:active{transform:translateY(1px)}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.net{display:flex;justify-content:space-between;padding:10px 12px;border-radius:10px;cursor:pointer}.net:hover,.net.on{background:rgba(127,214,164,.1)}
-.ok{color:var(--accent)}.bad{color:#ff8a7a}.hide{display:none}
-.view{position:relative;aspect-ratio:4/3;background:#000;border-radius:12px;overflow:hidden;margin-bottom:14px}
-.view img{width:100%;height:100%;object-fit:contain;display:block}.view .msg{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim)}.view .msg.hide{display:none}
-.copy{float:right;padding:4px 10px;font-size:12px}
+/* the site's look, offline: datasheet modules on perfboard, chamfered keys, the status LED's green */
+:root{--bg:#0a0b0d;--ink:#eef1f3;--muted:#a6afb8;--dim:#6c757e;--signal:#5ff0a1;--signal-ink:#03140b;--amber:#ffb547;--line:rgba(255,255,255,.12);
+ --line2:rgba(255,255,255,.26);--panel:rgba(12,14,17,.9);--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+html,body{margin:0;color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+ background:radial-gradient(800px 480px at 80% -10%,rgba(95,240,161,.08),transparent 60%),radial-gradient(circle,rgba(255,255,255,.05) .9px,transparent 1.3px) 0 0/14px 14px,var(--bg)}
+::selection{background:var(--signal);color:var(--signal-ink)}
+:focus-visible{outline:2px solid var(--signal);outline-offset:3px}
+main{max-width:760px;margin:0 auto;padding:24px 14px 60px}
+h1{font-size:30px;line-height:1.05;font-weight:800;letter-spacing:-.035em;margin:0 0 12px}
+h2{font:600 11px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 14px;padding-bottom:10px;
+ background:repeating-linear-gradient(90deg,var(--line2) 0 1px,transparent 1px 6px) 0 100%/100% 4px no-repeat,linear-gradient(var(--line),var(--line)) 0 100%/100% 1px no-repeat}
+h2 .mono{letter-spacing:.06em;text-transform:none}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:21px;letter-spacing:-.03em;margin:4px 0 22px}
+.brand i{width:20px;height:20px;border-radius:50%;border:3px solid var(--signal);display:grid;place-items:center}
+.brand i:after{content:"";width:6px;height:6px;border-radius:50%;background:var(--signal)}
+.brand small{font:600 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-left:auto;padding:4px 6px 3px;border:1px solid var(--line2);border-radius:2px}
+.brand small:empty{display:none}
+.card{position:relative;background:var(--panel);border-radius:2px;padding:18px 18px 20px;margin:0 0 14px;box-shadow:0 0 0 1px var(--line),0 24px 50px -24px rgba(0,0,0,.8)}
+.card:before{content:"";position:absolute;inset:-1px;pointer-events:none;background:
+ linear-gradient(var(--signal),var(--signal)) 0 0/12px 1.5px,linear-gradient(var(--signal),var(--signal)) 0 0/1.5px 12px,
+ linear-gradient(var(--signal),var(--signal)) 100% 0/12px 1.5px,linear-gradient(var(--signal),var(--signal)) 100% 0/1.5px 12px,
+ linear-gradient(var(--signal),var(--signal)) 0 100%/12px 1.5px,linear-gradient(var(--signal),var(--signal)) 0 100%/1.5px 12px,
+ linear-gradient(var(--signal),var(--signal)) 100% 100%/12px 1.5px,linear-gradient(var(--signal),var(--signal)) 100% 100%/1.5px 12px;background-repeat:no-repeat}
+p{color:var(--muted);margin:0 0 12px}.mono,code,pre{font-family:var(--mono);font-size:12px}
+p.mono{font-size:11.5px;color:var(--dim)}
+code{color:var(--ink);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:2px;box-shadow:inset 0 0 0 1px var(--line)}
+pre{background:rgba(4,5,7,.8);border-radius:0;padding:12px 14px;overflow-x:auto;color:var(--ink);margin:0 0 12px;white-space:pre-wrap;word-break:break-all;box-shadow:inset 0 0 0 1px var(--line)}
+label{display:block;font:600 10px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:14px 0 6px}
+input,select{width:100%;padding:11px 12px;border-radius:2px;border:1px solid var(--line2);background:rgba(4,5,7,.8);color:var(--ink);font-size:15px}
+input:focus,select:focus{border-color:var(--signal);outline:none}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--signal)}
+button,.btn{--c:8px;appearance:none;border:0;cursor:pointer;display:inline-block;text-decoration:none;padding:12px 16px 11px;font:600 11px/1.2 var(--mono);
+ letter-spacing:.1em;text-transform:uppercase;color:var(--ink);background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px var(--line2);
+ clip-path:polygon(0 0,calc(100% - var(--c)) 0,100% var(--c),100% 100%,var(--c) 100%,0 calc(100% - var(--c)))}
+button:hover,.btn:hover{background:rgba(95,240,161,.14);box-shadow:inset 0 0 0 1px var(--signal)}
+button.go{background:var(--signal);color:var(--signal-ink);box-shadow:none}button.go:hover{background:#b9ffd8}
+button:active,.btn:active{transform:translateY(1px)}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.net{display:flex;justify-content:space-between;padding:10px 12px;cursor:pointer;border-top:1px solid var(--line);font-size:14px}
+.net:hover,.net.on{background:rgba(95,240,161,.1);box-shadow:inset 2px 0 0 var(--signal)}
+.ok{color:var(--signal)}.bad{color:#ff8a7a}.hide{display:none}
+.view{position:relative;aspect-ratio:4/3;background:#000;overflow:hidden;margin-bottom:14px;box-shadow:0 0 0 1px var(--line)}
+.view img{width:100%;height:100%;object-fit:contain;display:block}.view .msg{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim);font:11px var(--mono)}.view .msg.hide{display:none}
+.copy{--c:5px;float:right;padding:4px 8px 3px;font-size:9.5px;margin-top:-4px}
 .view canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 )CSS";
 
@@ -149,7 +169,7 @@ let dTimer=0;
 function drawBoxes(d){ const c=$('boxes'), img=$('live'), r=c.getBoundingClientRect(); c.width=r.width*devicePixelRatio; c.height=r.height*devicePixelRatio;
   const x=c.getContext('2d'); x.clearRect(0,0,c.width,c.height); if(!d||!img.naturalWidth) return;
   const k=Math.min(c.width/img.naturalWidth,c.height/img.naturalHeight), iw=img.naturalWidth*k, ih=img.naturalHeight*k, ox=(c.width-iw)/2, oy=(c.height-ih)/2;
-  x.lineWidth=2*devicePixelRatio; x.strokeStyle='#7fd6a4'; x.fillStyle='#7fd6a4'; x.font=`${11*devicePixelRatio}px ui-monospace,monospace`;
+  x.lineWidth=2*devicePixelRatio; x.strokeStyle='#5ff0a1'; x.fillStyle='#5ff0a1'; x.font=`${11*devicePixelRatio}px ui-monospace,monospace`;
   for(const o of d.objects||[]){ const [bx,by,bw,bh]=o.box; x.strokeRect(ox+bx*iw,oy+by*ih,bw*iw,bh*ih); x.fillText(`${o.label} ${Math.round(o.score*100)}%`,ox+bx*iw,oy+by*ih-4*devicePixelRatio) } }
 async function pollDetect(){ clearTimeout(dTimer); try{ const d=await (await api('/api/detections')).json();
   $('dmodel').value=d.enabled?d.model:'off'; $('follow').checked=!!d.follow;
