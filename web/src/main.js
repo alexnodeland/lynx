@@ -16,7 +16,7 @@ const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const bar = document.querySelector("#loader .bar span");
 const {
   renderer, scene, camera, rig, pan, tilt, holders, EXPL, explode, state, applyParts, groupNode,
-  updateCables, tmp, setArcs, composer, dof,
+  updateCables, tmp, setArcs, composer, render, dof,
 } = await createStage({ canvas: document.getElementById("scene"), onProgress: (f) => (bar.style.width = `${100 * f}%`) });
 const ASSEMBLY = [
   ["Jig_Magnet", "Magnet into the base"], ["Jig_Servo_Pan", "Pan servo, two screws"], ["PanCap", "Pan cap, two side screws"],
@@ -340,5 +340,5 @@ renderer.setAnimationLoop((time) => {
   updateChrome(cur, calloutRect);
   applyTilt();
   updateReadout(pan.rotation.y * THREE.MathUtils.RAD2DEG, tilt.rotation.x * THREE.MathUtils.RAD2DEG);
-  if (poseChanged()) composer.render();
+  if (poseChanged()) render(time);
 });
