@@ -39,7 +39,7 @@ function shotPose([tx, ty, tz], az, el, dist, fov) {
   return { target: t, pos: p, fov };
 }
 const SHOTS = {
-  hero: shotPose(HERO, -32, 16, 0.40, 28),
+  hero: shotPose(HERO, 34, 13, 0.34, 28),           // front right and low, like the product renders
   agents: shotPose([C.pan_x, C.cy, -8], 28, 14, 0.36, 30),
   home: shotPose([C.pan_x, C.cy, -10], -48, 22, 0.42, 30),
   train: shotPose([C.pan_x, C.cy, -2], 6, 8, 0.28, 30),

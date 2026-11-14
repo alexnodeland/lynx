@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The shared lynx scene: renderer, studio lighting, the bench set, the product with its pan/tilt
+// The shared lynx scene: renderer, workshop lighting, the bench set, the product with its pan/tilt
 // rig and per-part holders, the cables (rebuilt from CAD waypoints), range arcs and post-processing.
 // Used by the landing page (main.js) and the build guide (build.js), so both show the same model.
 import * as THREE from "three";
@@ -14,6 +14,7 @@ import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { N8AOPass } from "n8ao";
 import { restyle, cableMaterial, powerCableMaterial } from "./materials.js";
 import { DepthOfFieldPass } from "./dof.js";
+import { siliconeMat, MAT_THICKNESS } from "./bench.js";
 
 export const MM = 0.001;
 // Blender (z-up, mm) -> three (y-up, m)
@@ -28,35 +29,30 @@ export async function createStage({ canvas, onProgress } = {}) {
   const TOUCH = matchMedia("(pointer: coarse)").matches;
   renderer.setPixelRatio(Math.min(devicePixelRatio, TOUCH ? 1.25 : 1.5));
   renderer.setSize(canvas.clientWidth || innerWidth, canvas.clientHeight || innerHeight, false);   // CSS sizes the canvas (100lvh)
-  renderer.toneMapping = THREE.AgXToneMapping;           // rolls highlights off like the Blender renders
-  renderer.toneMappingExposure = 1.25;
-  // the refraction behind the frosted lid and the clear parts is blurred anyway: render it at half size
-  // (the transmission pass redraws every opaque object, and was the costliest pass at full size)
-  renderer.transmissionResolutionScale = 0.5;
+  renderer.toneMapping = THREE.NeutralToneMapping;       // keeps the mat's blue and the oak's warmth saturated
+  renderer.toneMappingExposure = 0.85;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;        // filtered over shadow.radius
   const scene = new THREE.Scene();
-  const BG = 0x09090b;
-  scene.background = new THREE.Color(BG);
-  scene.fog = new THREE.Fog(BG, 0.55, 1.6);            // the far bench falls off into the dark
   const camera = new THREE.PerspectiveCamera(30, (canvas.clientWidth || innerWidth) / (canvas.clientHeight || innerHeight), 0.005, 5);
 
-  // lights: a warm desk lamp to the left throws a pool of light on the mat (key, soft shadows), a cool
-  // rim from behind picks out the top edges, and the studio HDR fills the rest
-  const key = new THREE.SpotLight(0xfff0e0, 1.35, 0, 0.5, 1, 2);
-  key.position.set(-0.32, 0.34, 0.02);
-  key.target.position.set(0.04, -0.06, -0.07);
+  // Light comes from the workshop itself: an HDRI of a real one (Poly Haven, CC0) lights and reflects
+  // in everything, and shows, out of focus, behind the bench. Its windows are turned to the back left,
+  // and the key is soft daylight from the left.
+  const ROOM_TURN = 2.9;                             // radians about y: the windows to the back left
+  scene.environmentRotation.y = scene.backgroundRotation.y = ROOM_TURN;
+  scene.environmentIntensity = 0.9;
+  scene.backgroundBlurriness = 0.32;
+  scene.backgroundIntensity = 0.2;                   // the room stays darker than the bench
+  const key = new THREE.DirectionalLight(0xfff1e4, 2.2);
+  key.position.set(-0.45, 0.4, 0.15);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
-  key.shadow.focus = 0.55;                           // spend the shadow map on the middle of the pool
-  Object.assign(key.shadow.camera, { near: 0.15, far: 1.2 });
-  key.shadow.bias = -0.0002;
-  key.shadow.radius = 3;
-  scene.add(key, key.target);
-  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x14161a, 0.14));
-  const rim = new THREE.DirectionalLight(0xb8ccff, 0.9);
-  rim.position.set(0.12, 0.26, -0.34);
-  scene.add(rim);
+  Object.assign(key.shadow.camera, { left: -0.2, right: 0.2, top: 0.2, bottom: -0.2, near: 0.05, far: 1.5 });
+  key.shadow.bias = -0.0003;
+  key.shadow.normalBias = 0.0004;
+  key.shadow.radius = 5;
+  scene.add(key);
   // the status LED's spill: it sits inside the lid and point lights cast no shadow here, so it is kept
   // faint and short, or it shines straight through the shell onto the yoke. Rides on the head, see below.
   const ledLight = new THREE.PointLight(0x40ff88, 0, 0.035, 2);
@@ -70,21 +66,37 @@ export async function createStage({ canvas, onProgress } = {}) {
     gltf.loadAsync("./assets/lynx.glb"),
     gltf.loadAsync("./assets/set.glb"),
     fetch("./assets/rig.json").then((r) => r.json()),
-    new HDRLoader(manager).loadAsync("./assets/studio_512.hdr"),
+    new HDRLoader(manager).loadAsync("./assets/workshop_512.hdr"),
+    document.fonts.ready,                            // the mat's print is drawn with the page's fonts
   ]);
   const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromEquirectangular(env).texture;
-  scene.environmentIntensity = 0.45;
+  scene.environment = scene.background = pmrem.fromEquirectangular(env).texture;
   env.dispose();
+  pmrem.dispose();
 
   restyle(set.scene);
-  // the bench's big surfaces only receive shadows; nothing stands under them to be shadowed
-  set.scene.traverse((o) => { if (/^(Desk|ESDMat|Wall)/.test(o.name)) o.castShadow = false; });
   const anisotropy = renderer.capabilities.getMaxAnisotropy();   // the mat and desk are seen at grazing angles
-  set.scene.traverse((o) => { for (const t of ["map", "normalMap", "roughnessMap"]) if (o.material?.[t]) o.material[t].anisotropy = anisotropy; });
+  // the room is the HDRI now, and the flat ESD mat gives way to the silicone one
+  for (const n of ["Wall", "ESDMat"]) set.scene.getObjectByName(n).visible = false;
+  const mat = siliconeMat({ anisotropy });
+  mat.position.set(0.02, set.scene.getObjectByName("Desk").position.y, -0.03);
+  set.scene.add(mat);
+  // the chips and caliper lay on the old mat: put them on the new one (it is a little thicker)
+  const lift = mat.position.y + MAT_THICKNESS - set.scene.getObjectByName("ESDMat").position.y;
+  set.scene.traverse((o) => { if (/^(Chip|Caliper)/.test(o.name)) o.position.y += lift; });
+  // a long workbench: the desk runs out of frame instead of ending at the room
+  const desk = set.scene.getObjectByName("Desk");
+  desk.castShadow = false;
+  desk.scale.set(2.4, 1, 2);
+  for (const t of ["map", "normalMap", "roughnessMap", "metalnessMap"]) {
+    const tex = desk.material[t];
+    if (!tex) continue;
+    tex.repeat.x *= 2.4; tex.repeat.y *= 2;
+    tex.anisotropy = anisotropy;
+  }
   // the bench is dressed for the film camera; for the web's wider shots push the station back
   set.scene.traverse((o) => { if (/^(Station|IronHolder|Iron)/.test(o.name)) { o.position.x += 0.42; o.position.z -= 0.34; } });
-  set.scene.traverse((o) => { if (/^(SolderSpool|WireSpool)/.test(o.name)) { o.position.x -= 0.07; o.position.z -= 0.05; } });   // clear the close-ups
+  set.scene.traverse((o) => { if (/^(SolderSpool|WireSpool)/.test(o.name)) { o.position.x -= 0.15; o.position.z -= 0.05; } });   // off the mat, onto the bench
   const mats = restyle(lynx.scene);
   scene.add(set.scene, lynx.scene);
   const node = (n) => lynx.scene.getObjectByName(n);
@@ -92,7 +104,7 @@ export async function createStage({ canvas, onProgress } = {}) {
   const holders = {};
   lynx.scene.traverse((o) => { if (o.name.endsWith("_Move")) holders[o.name.replace(/_Move$/, "")] = o; });
   const restPos = Object.fromEntries(Object.entries(holders).map(([k, h]) => [k, h.position.clone()]));
-  const led = mats.get("led");
+  const led = mats.get("led"), lightPipe = mats.get("PETG_clear");
 
   // offsets are authored in Blender part-local mm, like the video storyboard
   const EXPL = {
@@ -109,6 +121,7 @@ export async function createStage({ canvas, onProgress } = {}) {
 
   function setLed(amount) {
     led.emissiveIntensity = amount * 6;
+    lightPipe.emissiveIntensity = amount * 1.2;
     ledLight.intensity = amount * 0.003;
   }
 
@@ -132,6 +145,10 @@ export async function createStage({ canvas, onProgress } = {}) {
 
   // ------------------------------------------------------------------ cables (drawn from the CAD waypoints)
   lynx.scene.updateMatrixWorld(true);
+  // the label printed on the pan base's front panel (33 x 16 mm at z = -3.9 mm), riding with the base
+  const label = baseLabel(anisotropy);
+  label.position.copy(b2t(20.5, 3.8, -49));
+  holders.PanBase.attach(label);
   tilt.add(ledLight);
   ledLight.position.copy(tilt.worldToLocal(b2t(...rig.led)));
   const groupNode = { tilt, pan, fixed: node("Root") };
@@ -251,8 +268,30 @@ export async function createStage({ canvas, onProgress } = {}) {
   if (!TOUCH) composer.addPass(new SMAAPass(w, h));
 
   return {
-    renderer, scene, camera, key, rim, lynx, set, rig, mats, node, pan, tilt, holders, restPos, setLed,
+    renderer, scene, camera, key, lynx, set, rig, mats, node, pan, tilt, holders, restPos, setLed,
     EXPL, explode, state, LIFT_MM, applyParts, groupNode, cables, updateCables, tmp, setArcs,
     composer, ao, dof,
   };
+}
+
+// Light-grey print on the gunmetal, like the finished-hardware renders: PAN/TILT, the eye mark, REV D.
+function baseLabel(anisotropy) {
+  const W = 30, H = 12, PX = 24;                     // millimetres, pixels per millimetre
+  const c = document.createElement("canvas");
+  c.width = W * PX; c.height = H * PX;
+  const g = c.getContext("2d");
+  g.fillStyle = g.strokeStyle = "rgba(214,218,224,0.86)";
+  g.textBaseline = "middle";
+  g.font = `600 ${2.1 * PX}px "JetBrains Mono", ui-monospace, monospace`;
+  g.textAlign = "left"; g.fillText("PAN/TILT", 1.2 * PX, H * PX / 2);
+  g.textAlign = "right"; g.fillText("REV D", (W - 1.2) * PX, H * PX / 2);
+  g.lineWidth = 0.45 * PX;                           // the eye mark between them
+  g.beginPath(); g.arc(W * PX / 2, H * PX / 2, 2.1 * PX, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.arc(W * PX / 2, H * PX / 2, 0.8 * PX, 0, Math.PI * 2); g.fill();
+  const map = new THREE.CanvasTexture(c);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = anisotropy;
+  const material = new THREE.MeshStandardMaterial({ map, transparent: true, roughness: 0.6, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -2 });
+  return new THREE.Mesh(new THREE.PlaneGeometry(W * MM, H * MM), material);
 }
