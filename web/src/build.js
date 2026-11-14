@@ -11,7 +11,7 @@ import { GUIDE, PRINTED } from "./guide.js";
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const bar = document.querySelector("#loader .bar span");
 const {
-  renderer, scene, camera, rig, pan, tilt, holders, restPos, setLed, cables, updateCables, composer, render, dof, LIFT_MM,
+  renderer, scene, camera, rig, pan, tilt, holders, restPos, setLed, cables, updateCables, composer, render, invalidateShadows, dof, LIFT_MM,
 } = await createStage({ canvas: document.getElementById("scene"), onProgress: (f) => (bar.style.width = `${100 * f}%`) });
 
 // ------------------------------------------------------------------ parts: solid, arriving, ghost, hidden
@@ -179,6 +179,7 @@ function fillCard(s, i) {
 function go(i, { animate = true } = {}) {
   i = Math.max(0, Math.min(GUIDE.length - 1, i));
   invalidate();
+  invalidateShadows();                               // parts are shown, hidden and ghosted below
   const s = GUIDE[i];
   const first = cur < 0;
   cur = i;
@@ -301,6 +302,8 @@ renderer.setAnimationLoop((time) => {
   const moved = controls.update();   // true while the camera moves, damping included
   if (!moved && !stale && ![stepTl, idleTl, camTl, glowTl].some((t) => t?.isActive())) return;
   stale = false;
+  // the cables' draw range grows while they're laid in: not a part transform, so say it
+  if (stepTl?.isActive()) invalidateShadows();
   apply();
   updateCables();
   dof.uniforms.focus.value = camera.position.distanceTo(controls.target);
