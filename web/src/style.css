@@ -239,15 +239,16 @@ body::after { opacity: .07; mix-blend-mode: soft-light;
 .steps li.now { transform: translateX(6px); }
 @media (prefers-reduced-motion: reduce) { .chat li, .entities li, .flow li { opacity: 1; transform: none; } }
 
-/* Phones and portrait tablets: the product is framed in the top half (main.js, aspect < 0.85), and each
-   chapter's module docks to the bottom, above the rail, for as long as its chapter plays, so it never
-   slides over the product. */
+/* Phones and portrait tablets: the product is framed in the top half (main.js, aspect < 0.85), and the
+   modules ride the scroll. Each docks above the rail for its chapter; then the next one, a rail's height
+   behind it, pushes it up, 1:1 with the finger, and it fades as it rises over the product (main.js). */
 @media (max-width: 760px), (max-aspect-ratio: 17/20) {
   .hud { padding: 16px 18px 20px; }
   .brand { font-size: 19px; }
   .brand .rev { display: none; }
-  .beat { align-items: flex-end; padding: 0 12px; }
+  .beat { align-items: flex-end; padding: 0 12px calc(86px + env(safe-area-inset-bottom)); }
   .slab { position: sticky; bottom: calc(86px + env(safe-area-inset-bottom)); width: min(100%, 560px); margin-inline: auto; }
+  .slab, .slab.in { opacity: 1; transform: none; transition: none; }   /* motion follows the scroll, not a timer */
   .slab.left, .slab.right { margin-inline: auto; }
   .slab .face { background-color: rgba(10,12,15,.88); padding: 14px 16px 16px; }
   .slab .eyebrow { margin-bottom: 12px; padding-bottom: 10px; font-size: 9px; }
@@ -295,6 +296,7 @@ body::after { opacity: .07; mix-blend-mode: soft-light;
   .brand .rev { display: none; }
   .beat { padding: 0 24px; align-items: flex-start; }
   .slab { width: min(370px, 46vw); position: sticky; top: 56px; }   /* docked under the header for its chapter */
+  .slab, .slab.in { opacity: 1; transform: none; transition: none; }
   .slab .face { padding: 12px 14px 14px; }
   .slab .eyebrow { margin-bottom: 8px; padding-bottom: 8px; font-size: 9px; }
   .slab h1 { font-size: 23px; margin-bottom: 8px; }

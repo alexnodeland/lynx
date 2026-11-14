@@ -16,7 +16,7 @@ const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const bar = document.querySelector("#loader .bar span");
 const {
   renderer, scene, camera, rig, pan, tilt, holders, EXPL, explode, state, applyParts, groupNode,
-  updateCables, tmp, setArcs, composer, render, dof,
+  updateCables, tmp, setArcs, render, onResize, dof,
 } = await createStage({ canvas: document.getElementById("scene"), onProgress: (f) => (bar.style.width = `${100 * f}%`) });
 const ASSEMBLY = [
   ["Jig_Magnet", "Magnet into the base"], ["Jig_Servo_Pan", "Pan servo, two screws"], ["PanCap", "Pan cap, two side screws"],
@@ -194,6 +194,27 @@ function currentChapter() {
   beatAt.forEach((t, i) => { if (t <= y) cur = i; });
   return cur;
 }
+// Docked modules (phones, portrait tablets, landscape phones; CSS makes them sticky) fade as the scroll
+// carries them off their dock: over the product above a bottom dock, under the header above a top one.
+// Opacity follows the module's position, so the fade moves with the finger instead of running on a timer.
+const fades = chapters.filter((c) => c.slab).map((c) => ({ slab: c.slab, opacity: 1 }));
+function measureFades() {
+  for (const f of fades) {
+    const css = getComputedStyle(f.slab);
+    if (css.position !== "sticky") { f.opacity = null; continue; }
+    const r = f.slab.getBoundingClientRect();
+    const risen = css.bottom !== "auto" ? innerHeight - parseFloat(css.bottom) - r.bottom : parseFloat(css.top) - r.top;
+    const span = css.bottom !== "auto" ? innerHeight * 0.26 : r.height * 0.6;
+    f.opacity = THREE.MathUtils.clamp(1 - risen / span, 0, 1);
+  }
+}
+function applyFades() {
+  for (const f of fades) {
+    const v = f.opacity === null ? "" : f.opacity.toFixed(3);
+    if (f.slab.style.opacity !== v) f.slab.style.opacity = v;
+  }
+}
+
 // the slab the leader line starts from, or null when the current chapter has no callout showing
 function measureCallout(cur) {
   const { anchor, slab, face } = chapters[cur];
@@ -202,7 +223,7 @@ function measureCallout(cur) {
 }
 function updateChrome(cur, r) {
   railFill.style.transform = `scaleX(${progress})`;
-  // one module at a time: the current chapter's (on phones they dock in the same place, so two would stack)
+  // wide screens: the current chapter's module fades in, the others out (docked layouts override this)
   chapters.forEach(({ slab }, i) => slab?.classList.toggle("in", i === cur));
   railLinks.forEach((a) => a.classList.toggle("on", +a.dataset.to === cur || (cur === 6 && +a.dataset.to === 5)));
   // leader line from the visible slab to its anchor
@@ -222,7 +243,6 @@ function updateChrome(cur, r) {
 let tl = buildTimeline();
 // scroll sets a goal; the scene eases toward it every frame, so wheel steps glide instead of jump
 let goal = 0, progress = 0, vel = 0;
-const TOUCH = matchMedia("(pointer: coarse)").matches;
 const MAX_RATE = 0.3;   // timeline progress per second: caps how fast a fling can drive the scene
 // read the scroll position straight off the page, once per frame in the render loop (no scroll-event work)
 // viewport height held steady on phones, so the address bar sliding away doesn't nudge the scene
@@ -275,18 +295,12 @@ function scheduleRebuild() {
     invalidate();
   }, 150);
 }
-// Phones resize on every scroll as the address bar hides and shows. The canvas is sized to the large
-// viewport (100lvh), so a height-only change needs nothing: resizing the GL buffers and rebuilding the
-// timeline mid-fling is what made touch scrolling stutter.
-let lastW = innerWidth;
-addEventListener("resize", () => {
-  if (TOUCH && innerWidth === lastW) return;
-  lastW = innerWidth; viewH = innerHeight;
-  const cv = renderer.domElement, w = cv.clientWidth, h = cv.clientHeight;
+// The stage resizes the renderer when the canvas's box changes. The canvas is the large viewport
+// (100lvh), so a phone's address bar sliding in and out doesn't count: resizing the GL buffers and
+// rebuilding the timeline mid-fling is what made touch scrolling stutter.
+onResize((w, h) => {
+  viewH = innerHeight;
   Object.assign(viewport, { w, h });
-  renderer.setSize(w, h, false);
-  composer.setSize(w, h);
-  camera.aspect = w / h;
   invalidate();
   scheduleRebuild();
 });
@@ -309,6 +323,7 @@ renderer.setAnimationLoop((time) => {
   readGoal();
   const cur = currentChapter(), calloutRect = measureCallout(cur);
   measureTilt();
+  measureFades();
   // critically damped spring toward the scroll goal (no overshoot, frame-rate independent)
   const w = 9, x = progress - goal, e = Math.exp(-w * dt), t0 = (vel + w * x) * dt;
   const next = goal + (x + t0) * e, cap = MAX_RATE * dt;
@@ -338,6 +353,7 @@ renderer.setAnimationLoop((time) => {
   camera.lookAt(smooth.target);
   dof.uniforms.focus.value = camera.position.distanceTo(smooth.target);
   updateChrome(cur, calloutRect);
+  applyFades();
   applyTilt();
   updateReadout(pan.rotation.y * THREE.MathUtils.RAD2DEG, tilt.rotation.x * THREE.MathUtils.RAD2DEG);
   if (poseChanged()) render(time);

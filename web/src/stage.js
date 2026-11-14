@@ -27,8 +27,7 @@ export async function createStage({ canvas, onProgress } = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   // phones: fewer pixels and no AO/depth-of-field, so every frame lands inside the scroll's frame budget
   const TOUCH = matchMedia("(pointer: coarse)").matches;
-  renderer.setPixelRatio(Math.min(devicePixelRatio, TOUCH ? 1.25 : 1.5));
-  renderer.setSize(canvas.clientWidth || innerWidth, canvas.clientHeight || innerHeight, false);   // CSS sizes the canvas (100lvh)
+  const MAX_RATIO = TOUCH ? 1.25 : 1.5;
   renderer.toneMapping = THREE.NeutralToneMapping;       // keeps the mat's blue and the oak's warmth saturated
   renderer.toneMappingExposure = 0.85;
   renderer.shadowMap.enabled = true;
@@ -278,10 +277,48 @@ export async function createStage({ canvas, onProgress } = {}) {
   composer.addPass(new OutputPass());
   if (!TOUCH) composer.addPass(new SMAAPass(w, h));
 
-  // Adaptive resolution: frames rendered back to back are timed, and if they run below ~35 fps for a
-  // second and a half the pixel ratio steps down (to 0.75 at the lowest). It never steps back up within
-  // a visit: behind vsync, a fast GPU and a just-fast-enough one look the same.
-  let lastFrame = -Infinity, slowFor = 0;
+  // ------------------------------------------------------------------ size
+  // The drawing buffer follows the canvas's CSS box (100vw x 100lvh), observed directly. Measuring it
+  // once at start-up could catch the canvas before the stylesheet applied (the default 300 x 150,
+  // stretched and blurry until the window was resized), and a window resize misses zoom, a move to a
+  // screen of another density and a page restored from the back/forward cache.
+  const STEPS = [1, 0.85, 0.7];                      // adaptive-resolution scales, see govern()
+  let step = 0;
+  const resizeListeners = new Set();
+  function fit() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    const ratio = Math.max(0.75, Math.min(devicePixelRatio, MAX_RATIO) * STEPS[step]);
+    renderer.setPixelRatio(ratio);
+    renderer.setSize(w, h, false);
+    composer.setPixelRatio(ratio);
+    composer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    for (const listener of resizeListeners) listener(w, h);
+  }
+  const onResize = (listener) => resizeListeners.add(listener);
+  new ResizeObserver(fit).observe(canvas);
+  (function watchDensity() {
+    matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener("change", () => { fit(); watchDensity(); }, { once: true });
+  })();
+  addEventListener("pageshow", (e) => { if (e.persisted) fit(); });
+  fit();
+
+  // Adaptive resolution. Frames drawn back to back are timed once the page has settled (its first
+  // seconds compile shaders and upload textures, which would read as a slow GPU). Below ~35 fps for two
+  // seconds the resolution steps down; at a steady 50+ fps it steps back up, waiting twice as long after
+  // every step down so it never see-saws.
+  let settledAt = Infinity, lastFrame = -Infinity, slowFor = 0, fastFor = 0, upAfter = 8000;
+  function govern(time) {
+    if (settledAt === Infinity) settledAt = time + 4000;   // four seconds from the first frame
+    const dt = time - lastFrame;
+    lastFrame = time;
+    if (time < settledAt || dt > 100) return;        // warming up, or the first frame after idling
+    if (dt > 28) { slowFor += dt; fastFor = 0; } else { slowFor = Math.max(0, slowFor - dt); fastFor = dt < 20 ? fastFor + dt : 0; }
+    if (slowFor > 2000 && step < STEPS.length - 1) { step++; upAfter *= 2; slowFor = fastFor = 0; fit(); }
+    else if (fastFor > upAfter && step > 0) { step--; slowFor = fastFor = 0; fit(); }
+  }
 
   // The key light and the bench never move, so the shadow map is only redrawn when the product does
   // (pan, tilt, lift, a part flying in) or a page says parts were shown or hidden (invalidateShadows).
@@ -298,17 +335,7 @@ export async function createStage({ canvas, onProgress } = {}) {
   }
 
   function render(time = performance.now()) {
-    const dt = time - lastFrame;
-    lastFrame = time;
-    if (dt < 100) {                                  // a consecutive frame, not the first after idling
-      slowFor = dt > 28 ? slowFor + dt : Math.max(0, slowFor - dt);
-      const ratio = renderer.getPixelRatio();
-      if (slowFor > 1500 && ratio > 0.75) {
-        slowFor = 0;
-        renderer.setPixelRatio(ratio - 0.25);
-        composer.setPixelRatio(ratio - 0.25);
-      }
-    }
+    govern(time);
     if (partsMoved()) renderer.shadowMap.needsUpdate = true;
     composer.render();
   }
@@ -316,7 +343,7 @@ export async function createStage({ canvas, onProgress } = {}) {
   return {
     renderer, scene, camera, key, lynx, set, rig, mats, node, pan, tilt, holders, restPos, setLed,
     EXPL, explode, state, LIFT_MM, applyParts, groupNode, cables, updateCables, tmp, setArcs,
-    composer, render, invalidateShadows, ao, dof,
+    composer, render, onResize, invalidateShadows, ao, dof,
   };
 }
 
