@@ -67,7 +67,8 @@ export async function createStage({ canvas, onProgress } = {}) {
     gltf.loadAsync("./assets/set.glb"),
     fetch("./assets/rig.json").then((r) => r.json()),
     new HDRLoader(manager).loadAsync("./assets/workshop_512.hdr"),
-    document.fonts.ready,                            // the mat's print is drawn with the page's fonts
+    // the mat's and the base's print is drawn with the page's fonts
+    document.fonts.load('600 16px "Martian Mono"'), document.fonts.load("800 16px Archivo"),
   ]);
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = scene.background = pmrem.fromEquirectangular(env).texture;
@@ -282,7 +283,7 @@ function baseLabel(anisotropy) {
   const g = c.getContext("2d");
   g.fillStyle = g.strokeStyle = "rgba(214,218,224,0.86)";
   g.textBaseline = "middle";
-  g.font = `600 ${2.1 * PX}px "JetBrains Mono", ui-monospace, monospace`;
+  g.font = `600 ${2 * PX}px "Martian Mono", ui-monospace, monospace`;
   g.textAlign = "left"; g.fillText("PAN/TILT", 1.2 * PX, H * PX / 2);
   g.textAlign = "right"; g.fillText("REV D", (W - 1.2) * PX, H * PX / 2);
   g.lineWidth = 0.45 * PX;                           // the eye mark between them

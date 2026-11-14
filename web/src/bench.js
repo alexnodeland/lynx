@@ -67,11 +67,11 @@ function printTexture(anisotropy) {
     g.beginPath(); g.moveTo(X(x), Y(-D / 2 + 0.012)); g.lineTo(X(x), Y(-D / 2 + 0.012 + len)); g.stroke();
   }
   g.fillStyle = ink(0.62); g.textBaseline = "middle";
-  g.font = `600 ${0.0048 * s}px "JetBrains Mono", ui-monospace, monospace`;
+  g.font = `600 ${0.0048 * s}px "Martian Mono", ui-monospace, monospace`;
   for (let cm = 0; cm <= 40; cm += 5) g.fillText(String(cm), X(-0.2 + cm * 0.01) + 6, Y(-D / 2 + 0.012 + 0.0115));
-  g.font = `700 ${0.0075 * s}px "Inter Tight", system-ui, sans-serif`;
+  g.font = `800 ${0.0075 * s}px Archivo, system-ui, sans-serif`;
   g.fillText("lynx", X(-0.235), Y(-0.04));
-  g.font = `500 ${0.0042 * s}px "JetBrains Mono", ui-monospace, monospace`;
+  g.font = `500 ${0.0042 * s}px "Martian Mono", ui-monospace, monospace`;
   g.fillText("SILICONE WORK MAT · 500 °C · ESD SAFE", X(-0.235), Y(-0.052));
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
