@@ -5,7 +5,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
-import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
+import { HDRLoader } from "three/examples/jsm/loaders/HDRLoader.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
@@ -30,8 +30,11 @@ export async function createStage({ canvas, onProgress } = {}) {
   renderer.setSize(canvas.clientWidth || innerWidth, canvas.clientHeight || innerHeight, false);   // CSS sizes the canvas (100lvh)
   renderer.toneMapping = THREE.AgXToneMapping;           // rolls highlights off like the Blender renders
   renderer.toneMappingExposure = 1.25;
+  // the refraction behind the frosted lid and the clear parts is blurred anyway: render it at half size
+  // (the transmission pass redraws every opaque object, and was the costliest pass at full size)
+  renderer.transmissionResolutionScale = 0.5;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;        // unlike PCFSoftShadowMap, honours shadow.radius
+  renderer.shadowMap.type = THREE.PCFShadowMap;        // filtered over shadow.radius
   const scene = new THREE.Scene();
   const BG = 0x09090b;
   scene.background = new THREE.Color(BG);
@@ -67,7 +70,7 @@ export async function createStage({ canvas, onProgress } = {}) {
     gltf.loadAsync("./assets/lynx.glb"),
     gltf.loadAsync("./assets/set.glb"),
     fetch("./assets/rig.json").then((r) => r.json()),
-    new RGBELoader(manager).loadAsync("./assets/studio_1k.hdr"),
+    new HDRLoader(manager).loadAsync("./assets/studio_512.hdr"),
   ]);
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromEquirectangular(env).texture;

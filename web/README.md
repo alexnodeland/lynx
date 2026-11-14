@@ -19,6 +19,9 @@ npm run build     # production build into dist/
 npm run preview   # serve dist/
 ```
 
+After re-exporting `lynx.glb` from Blender, run `npm run optimize-model`: it simplifies every mesh to within
+0.05 % of its size (the CAD export is ~5x denser than the screen can show) and re-compresses it with Draco.
+
 ## Layout
 
 | Path | Contents |
@@ -33,7 +36,7 @@ npm run preview   # serve dist/
 | `src/main.js` | the landing page: scroll timeline, shots, chrome |
 | `src/materials.js` | materials |
 | `src/style.css` | styles |
-| `public/assets/` | `lynx.glb` (the model), `set.glb` (the desk set), `rig.json`, `studio_1k.hdr` |
+| `public/assets/` | `lynx.glb` (the model), `set.glb` (the desk set), `rig.json`, `studio_512.hdr` |
 | `public/draco/` | Draco decoder for the compressed glTF |
 
 ## Deploy

@@ -282,13 +282,15 @@ await renderer.compileAsync(scene, camera);
 composer.render();
 document.getElementById("loader").classList.add("done");
 const introTl = REDUCED ? null : intro();
-const clock = new THREE.Clock();
+const timer = new THREE.Timer();
+timer.connect(document);   // no giant delta after the tab was hidden
 let lookPan = 0, lookTilt = 0;
 const parallax = new THREE.Vector3();
 
 // Each frame does its DOM reads first and its writes last, so the page lays out at most once per frame.
-renderer.setAnimationLoop(() => {
-  const dt = Math.min(clock.getDelta(), 1 / 30);
+renderer.setAnimationLoop((time) => {
+  timer.update(time);
+  const dt = Math.min(timer.getDelta(), 1 / 30);
   readGoal();
   const cur = currentChapter(), calloutRect = measureCallout(cur);
   measureTilt();
